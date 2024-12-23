@@ -105,6 +105,14 @@ class Transporteur:
         if self.VERBOSE:
             print("[INFO]Calculating tarif for DPD : ...")
         
+        for element in panier:
+            if element['poids'] > POIDS_MAX_COLIS_DPD:
+                if self.VERBOSE:
+                    print(f"\t[ERROR]Poids de l'article {element['nom']} superieur au poids maximum du colis")
+                    print(f"\t[ERROR]Poids de l'article {element['nom']} : {element['poids']} kg")
+                    print("[WARNING]Calculating tarif for DPD : ERROR")
+                    return {"prix": "ERROR","arrangement":"ERROR"}
+
         def tarif_par_masse(masse, tarif_par_kg):
             if masse in tarif_par_kg:
                 return tarif_par_kg[masse]
@@ -145,6 +153,8 @@ class Transporteur:
                 return dp[key]
 
             total_cost, colis = solve(items)
+            if total_cost == float('inf'):
+                total_cost =None
             return total_cost, colis
 
         poids_articles = [article['poids'] for article in panier]
@@ -154,7 +164,8 @@ class Transporteur:
         if self.VERBOSE:
             print(f"[INFO]Total cost for DPD: {total_cost}€")
             print(f"[INFO]Colis distribution: {colis}")
-        return total_cost
+        
+        return {"prix": total_cost,"arrangement":colis}
     
     def calculer_tarif_schenker_palette(self, panier, departement, nbre_palette = 1, verbose=False):
         poids_total = 0
