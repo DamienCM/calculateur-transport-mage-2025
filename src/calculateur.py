@@ -11,8 +11,14 @@ SEUIL_PALETTE_SCHENKER_MESSAGERIE = 200 # kg
 # SEUIL_PALETTE_SCHENKER_MESSAGERIE = 200 # kg
 SEUIL_PRIX_AU_KG_MESSAGERIE_SCHENKER = 100 # kg
 MAX_POIDS_MESSAGERIE_SCHENKER = 1000 # kg
+SEUIL_WARNING_ITERATIONS = 10000
 
+import timeit
 from itertools import combinations
+from tqdm import tqdm
+import numpy as np
+
+from utils import partitions_count, partitions_list_numpy, partitions_array, partitions_list
 
 class CalculateurFraisLivraison:
     def __init__(self):
@@ -105,6 +111,7 @@ class Transporteur:
         if self.VERBOSE:
             print("[INFO]Calculating tarif for DPD : ...")
         
+        # Check if the weight of an article is greater than the maximum weight of the colis
         for element in panier:
             if element['poids'] > POIDS_MAX_COLIS_DPD:
                 if self.VERBOSE:
@@ -118,49 +125,77 @@ class Transporteur:
                 return tarif_par_kg[masse]
             else:
                 return tarif_par_kg[max(tarif_par_kg.keys())]
+            
 
         def optimiser_colis(items, max_weight, tarif_par_kg):
-            n = len(items)
             items = sorted(items, reverse=True)
-            dp = {}
+            n = len(items)
+            number_of_partitions = partitions_count(n)
 
-            def solve(remaining_items):
-                if not remaining_items:
-                    return 0, []
-                key = tuple(sorted(remaining_items))
-                if key in dp:
-                    return dp[key]
-                
-                min_cost = float('inf')
-                best_combination = []
+            if self.VERBOSE:
+                print("\t[INFO]Optimizing colis arrangement...")
+                print(f"\t[INFO]Number of partitions : {number_of_partitions}")
+            if number_of_partitions > SEUIL_WARNING_ITERATIONS:
+                if self.VERBOSE:
+                    print(f"\t[WARNING]Number of partitions : {number_of_partitions}")
+                    print(f"\t[WARNING]This may take a while...")
+            # Generates the set of all possible partitions
+            all_partitions = partitions_list(items)
+            if self.VERBOSE:
+                print(f"\t[INFO]List of partitions generated")
+                if number_of_partitions <= 6 :
+                    print(f"[INFO]Partitions : \n{all_partitions}")
+                else:
+                    # only prints the partitions_to_print first and last partitions
+                    partitions_to_print = 5
+                    print("\t[INFO]Partitions :")
+                    for i in range(partitions_to_print):
+                        print(f" {i+1}:") 
+                        print(f"{all_partitions[i]}")
+                    print("...")
+                    for i in range(number_of_partitions-partitions_to_print, number_of_partitions):
+                        print(f" {i+1}:")
+                        print(f"{all_partitions[i]}")
 
-                for i in range(1, len(remaining_items) + 1):
-                    for subset in combinations(remaining_items, i):
-                        if sum(subset) <= max_weight:
-                            cost_colis = tarif_par_masse(sum(subset), tarif_par_kg)
-                            remaining = list(remaining_items)
-                            for item in subset:
-                                remaining.remove(item)
-                            
-                            cost_remaining, combination = solve(remaining)
-                            total_cost = cost_colis + cost_remaining
 
-                            if total_cost < min_cost:
-                                min_cost = total_cost
-                                best_combination = [list(subset)] + combination
-                
-                dp[key] = (min_cost, best_combination)
-                return dp[key]
+            min_cost = float('inf')
+            best_partition = None
+            debug_list_main = []
+            i=0
+            for partition in tqdm(all_partitions, desc="Progress", disable=not self.VERBOSE):
+            # for partition in all_partitions:
+                # i+=1
+                # debug_list_sub = []
+                partition_cost = 0
+                # if total weight of one of the partition elements is greater than the maximum weight of the colis, skip
+                for subset in partition:
+                    subset_weight = sum(subset)
+                    if subset_weight>max_weight:
+                        partition_cost = float('inf')
+                        # print(f"skipped partition {i} because of subset {subset}, subset weight {subset_weight} > max weight {max_weight}")
+                        # debug_list_sub.append(partition_cost)
+                        break
+                    tarif_subset = tarif_par_masse(subset_weight, tarif_par_kg)
+                    # debug_list_sub.append(tarif_subset)
+                    partition_cost += tarif_subset
+                if partition_cost < min_cost:
+                    min_cost = partition_cost
+                    best_partition = partition
+                # debug_list_main.append([i,f"prix des colis {debug_list_sub}", f"total prix partition : {sum(debug_list_sub)}"])
+            if self.VERBOSE:
+                # print(f"\t[INFO]Debug list :")
+                # for i in range(len(debug_list_main)):
+                    # print(f"\t{debug_list_main[i]}")
+                print(f"\t[INFO]Minimum cost : {min_cost}€")
+                print(f"\t[INFO]Best partition : {best_partition}")
+                print("[INFO]Calculating tarif for DPD : DONE\n")
+            return min_cost, best_partition
 
-            total_cost, colis = solve(items)
-            if total_cost == float('inf'):
-                total_cost =None
-            return total_cost, colis
+
 
         poids_articles = [article['poids'] for article in panier]
-        tarif_par_kg = self.tarifs
-        max_weight = POIDS_MAX_COLIS_DPD
-        total_cost, colis = optimiser_colis(poids_articles, max_weight, tarif_par_kg)
+
+        total_cost, colis = optimiser_colis(poids_articles, POIDS_MAX_COLIS_DPD, self.tarifs)
         if self.VERBOSE:
             print(f"[INFO]Total cost for DPD: {total_cost}€")
             print(f"[INFO]Colis distribution: {colis}")
@@ -269,3 +304,33 @@ class Transporteur:
                             print(f"\t[INFO]Tarif pour {poids_total} kg : {tarif}€")
                             print(f"[INFO]Calculating tarif for Schenker messagerie : DONE\n")
                         return tarif
+                    
+
+
+if __name__ == "__main__":
+    calculateur = CalculateurFraisLivraison()
+    config = 1
+    if config==1 :
+        panier = [
+            {"nom": "Article 1", "poids": 5},
+            {"nom": "Article 2", "poids": 10},
+            {"nom": "Article 3", "poids": 15},
+            {"nom": "Article 4", "poids": 20},
+            {"nom": "Article 5", "poids": 25},
+            {"nom": "Article 6", "poids": 22},
+            {"nom": "Article 7", "poids": 3},
+            {"nom": "Article 8", "poids": 12},
+            {"nom": "Article 9", "poids": 18},
+            {"nom": "Article 10", "poids": 7},
+            {"nom": "Article 11", "poids": 9},
+            ]
+        execution_time = timeit.timeit(lambda: calculateur.calculer(panier, "75"), number=5)
+        print(f"Execution time: {execution_time:.2f} seconds")
+    
+    elif config==2:
+        panier = [
+            {"nom": "Article 1", "poids": 5},
+            {"nom": "Article 2", "poids": 10},
+            {"nom": "Article 3", "poids": 15},
+        ]
+        calculateur.calculer(panier, "75")
