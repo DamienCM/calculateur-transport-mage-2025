@@ -1,5 +1,6 @@
 import tkinter as tk
 from calculateur import CalculateurFraisLivraison
+from tkinter import messagebox
 
 calculateur = None
 result_text = None
@@ -26,8 +27,10 @@ def calculer_frais():
     try:
         panier = [{'nom': f'article{i+1}', 'poids': float(entry.get())} for i, (label, entry) in enumerate(entries) if entry.get()]
         departement = departement_entry.get()
-        resultats = calculateur.calculer(panier, departement)
-        
+        try :
+            resultats = calculateur.calculer(panier, departement)
+        except Exception as e :
+            messagebox.showerror("Error",str(e))
         prix_dpd = float(resultats['dpd']['prix'])
         prix_schenker_palette = float(resultats['schenker_palette'])
         prix_schenker_messagerie = float(resultats['schenker_messagerie'])
@@ -57,9 +60,9 @@ def calculer_frais():
             result_label_schenker_palette.config(fg="black")
             result_label_schenker_messagerie.config(fg="red")
     except ValueError as e:
-        result_text.set(f"Erreur: Veuillez entrer des poids valides : {e}")
+        messagebox.showerror("Error", f"Erreur: Veuillez entrer des poids valides : {e}")
     except Exception as e:
-        result_text.set(f"Erreur: {e}")
+        messagebox.showerror.set("Error",f"Erreur: {e}")
 
 def initialiser_interface(input_calculateur):
     global root, entries, calculateur, input_frame, button_frame, result_text, results_text_schenker_palette, results_text_schenker_messagerie, results_text_dpd, arrangement_text_dpd, departement_entry, result_label_dpd, arrangement_label_dpd, result_label_schenker_palette, result_label_schenker_messagerie

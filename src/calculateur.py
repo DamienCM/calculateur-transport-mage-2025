@@ -11,7 +11,9 @@ SEUIL_PALETTE_SCHENKER_MESSAGERIE = 200 # kg
 # SEUIL_PALETTE_SCHENKER_MESSAGERIE = 200 # kg
 SEUIL_PRIX_AU_KG_MESSAGERIE_SCHENKER = 100 # kg
 MAX_POIDS_MESSAGERIE_SCHENKER = 1000 # kg
-SEUIL_WARNING_ITERATIONS = 10000
+SEUIL_WARNING_ITERATIONS = 10
+
+from tkinter import messagebox
 
 import timeit
 from itertools import combinations
@@ -136,12 +138,17 @@ class Transporteur:
             if self.VERBOSE:
                 print("\t[INFO]Optimizing colis arrangement...")
                 print(f"\t[INFO]Number of partitions : {number_of_partitions}")
-            if number_of_partitions > SEUIL_WARNING_ITERATIONS:
+
+            if n > SEUIL_WARNING_ITERATIONS:
                 if self.VERBOSE:
                     print(f"\t[WARNING]Number of partitions : {number_of_partitions}")
                     print(f"\t[WARNING]This may take a while...")
+                result = messagebox.askyesno("Attention","Le calcul peut etre long pour DPD voulez vous l'effectuer ?")
+                print(result)
+                if not result :
+                    return  float("inf"),[]
             
-            run_config="python-c"
+            run_config="c"
             # Generates the set of all possible partitions
             if "python" in run_config:
                 set_new_tarif(tarif_par_kg[:,0],tarif_par_kg[:,1])
@@ -297,9 +304,13 @@ if __name__ == "__main__":
             {"nom": "Article 7", "poids": 3},
             {"nom": "Article 8", "poids": 6},
             {"nom": "Article 9", "poids": 12},
-            {"nom": "Article 10", "poids": 2},
-            {"nom": "Article 11", "poids": 9},
+            # {"nom": "Article 10", "poids": 2},
+            # {"nom": "Article 11", "poids": 9},
             # {"nom": "Article 12", "poids": 9},
+            # {"nom": "Article 13", "poids": 9},
+            # {"nom": "Article 14", "poids": 9},
+            # {"nom": "Article 15", "poids": 9},
+            # {"nom": "Article 16", "poids": 9},
             ]
         execution_time = timeit.timeit(lambda: calculateur.calculer(panier, "75"), number=1)
         print(f"Execution time: {execution_time:.2f} seconds")

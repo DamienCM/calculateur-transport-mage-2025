@@ -4,10 +4,14 @@ from pathlib import Path
 
 # Compile the C code
 import subprocess
+
+print("[INFO] Compiling c library : ...")
+
 subprocess.run(['gcc', '-fPIC', '-shared', '-o', 'libpartition_optimizer.so', 'partition_optimizer.c'])
 
 # Load the compiled library
 lib = ctypes.CDLL(str(Path.cwd() / 'libpartition_optimizer.so'))
+print("[INFO] Compiling c library : DONE")
 
 # Define the Result structure in Python
 class OptimizationResult(ctypes.Structure):
