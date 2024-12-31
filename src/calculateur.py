@@ -141,7 +141,7 @@ class Transporteur:
                     print(f"\t[WARNING]Number of partitions : {number_of_partitions}")
                     print(f"\t[WARNING]This may take a while...")
             
-            run_config="1"
+            run_config="2"
             # Generates the set of all possible partitions
             if run_config=="2":
                 set_new_tarif(tarif_par_kg[:,0],tarif_par_kg[:,1])
@@ -299,7 +299,7 @@ if __name__ == "__main__":
             {"nom": "Article 11", "poids": 9},
             {"nom": "Article 12", "poids": 9},
             ]
-        execution_time = timeit.timeit(lambda: calculateur.calculer(panier, "75"), number=20)
+        execution_time = timeit.timeit(lambda: calculateur.calculer(panier, "75"), number=1)
         print(f"Execution time: {execution_time:.2f} seconds")
     
     elif config==2:
