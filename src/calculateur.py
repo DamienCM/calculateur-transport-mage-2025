@@ -18,7 +18,7 @@ from itertools import combinations
 from tqdm import tqdm
 import numpy as np
 
-from utils import partitions_count, partitions_list_numpy, partitions_array, partitions_list
+from utils import partitions_count, partitions_list_numpy, partitions_array, find_best_config
 
 class CalculateurFraisLivraison:
     def __init__(self):
@@ -120,11 +120,7 @@ class Transporteur:
                     print("[WARNING]Calculating tarif for DPD : ERROR")
                     return {"prix": "ERROR","arrangement":"ERROR"}
 
-        def tarif_par_masse(masse, tarif_par_kg):
-            if masse in tarif_par_kg:
-                return tarif_par_kg[masse]
-            else:
-                return tarif_par_kg[max(tarif_par_kg.keys())]
+
             
 
         def optimiser_colis(items, max_weight, tarif_par_kg):
@@ -140,56 +136,17 @@ class Transporteur:
                     print(f"\t[WARNING]Number of partitions : {number_of_partitions}")
                     print(f"\t[WARNING]This may take a while...")
             # Generates the set of all possible partitions
-            all_partitions = partitions_list(items)
-            if self.VERBOSE:
-                print(f"\t[INFO]List of partitions generated")
-                if number_of_partitions <= 6 :
-                    print(f"[INFO]Partitions : \n{all_partitions}")
-                else:
-                    # only prints the partitions_to_print first and last partitions
-                    partitions_to_print = 5
-                    print("\t[INFO]Partitions :")
-                    for i in range(partitions_to_print):
-                        print(f" {i+1}:") 
-                        print(f"{all_partitions[i]}")
-                    print("...")
-                    for i in range(number_of_partitions-partitions_to_print, number_of_partitions):
-                        print(f" {i+1}:")
-                        print(f"{all_partitions[i]}")
+            best_price,best_config = find_best_config(items,tarif_par_kg=tarif_par_kg)
 
-
-            min_cost = float('inf')
-            best_partition = None
-            debug_list_main = []
-            i=0
-            for partition in tqdm(all_partitions, desc="Progress", disable=not self.VERBOSE):
-            # for partition in all_partitions:
-                # i+=1
-                # debug_list_sub = []
-                partition_cost = 0
-                # if total weight of one of the partition elements is greater than the maximum weight of the colis, skip
-                for subset in partition:
-                    subset_weight = sum(subset)
-                    if subset_weight>max_weight:
-                        partition_cost = float('inf')
-                        # print(f"skipped partition {i} because of subset {subset}, subset weight {subset_weight} > max weight {max_weight}")
-                        # debug_list_sub.append(partition_cost)
-                        break
-                    tarif_subset = tarif_par_masse(subset_weight, tarif_par_kg)
-                    # debug_list_sub.append(tarif_subset)
-                    partition_cost += tarif_subset
-                if partition_cost < min_cost:
-                    min_cost = partition_cost
-                    best_partition = partition
                 # debug_list_main.append([i,f"prix des colis {debug_list_sub}", f"total prix partition : {sum(debug_list_sub)}"])
             if self.VERBOSE:
                 # print(f"\t[INFO]Debug list :")
                 # for i in range(len(debug_list_main)):
                     # print(f"\t{debug_list_main[i]}")
-                print(f"\t[INFO]Minimum cost : {min_cost}€")
-                print(f"\t[INFO]Best partition : {best_partition}")
+                print(f"\t[INFO]Minimum cost : {best_price}€")
+                print(f"\t[INFO]Best partition : {best_config}")
                 print("[INFO]Calculating tarif for DPD : DONE\n")
-            return min_cost, best_partition
+            return best_price, best_config
 
 
 
@@ -332,5 +289,6 @@ if __name__ == "__main__":
             {"nom": "Article 1", "poids": 5},
             {"nom": "Article 2", "poids": 10},
             {"nom": "Article 3", "poids": 15},
+            {"nom": "Article 3", "poids": 20},
         ]
         calculateur.calculer(panier, "75")
