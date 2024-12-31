@@ -146,7 +146,7 @@ class Transporteur:
             if "python" in run_config:
                 set_new_tarif(tarif_par_kg[:,0],tarif_par_kg[:,1])
                 best_price,best_config = find_best_config(items)
-                print(f"100% python : price : {best_price}\n For config : {best_config}")
+                print(f"\t [INFO] 100% python : price : {best_price}\n For config : {best_config}")
             if "c" in run_config:
                 weights = list(tarif_par_kg[:,0])
                 prices = list(tarif_par_kg[:,1])
@@ -154,7 +154,7 @@ class Transporteur:
                 result = c_find_best_config(items)
                 best_price = result['price']
                 best_config = result['config']
-                print(f"c + python - price : {best_price}\n For config : {best_config}")
+                print(f"\t [INFO] C + python - price : {best_price}\n For config : {best_config}")
 
 
                 # debug_list_main.append([i,f"prix des colis {debug_list_sub}", f"total prix partition : {sum(debug_list_sub)}"])
