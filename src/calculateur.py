@@ -18,7 +18,7 @@ from itertools import combinations
 from tqdm import tqdm
 import numpy as np
 
-from utils import partitions_count, partitions_list_numpy, partitions_array, find_best_config
+from utils import partitions_count, partitions_list_numpy, partitions_array, find_best_config, set_new_tarif
 
 class CalculateurFraisLivraison:
     def __init__(self):
@@ -136,7 +136,8 @@ class Transporteur:
                     print(f"\t[WARNING]Number of partitions : {number_of_partitions}")
                     print(f"\t[WARNING]This may take a while...")
             # Generates the set of all possible partitions
-            best_price,best_config = find_best_config(items,tarif_par_kg=tarif_par_kg)
+            set_new_tarif(tarif_par_kg)
+            best_price,best_config = find_best_config(items)
 
                 # debug_list_main.append([i,f"prix des colis {debug_list_sub}", f"total prix partition : {sum(debug_list_sub)}"])
             if self.VERBOSE:

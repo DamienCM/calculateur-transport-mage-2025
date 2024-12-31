@@ -10,24 +10,33 @@ def partitions_count(n, k=0):
         raise ValueError("n must be a positive integer")
     return int(n < 1) or k*partitions_count(n-1, k) + partitions_count(n-1, k+1)
 
-def find_best_config(elements, i=0, price=0,tarif_par_kg={}):
+tarif_par_kg = {}
+def set_new_tarif(new_tarif):
+    global tarif_par_kg
+    tarif_par_kg = new_tarif
+
+def tarif_par_masse(masse):
+    global tarif_par_kg
+    if masse in tarif_par_kg:
+        return tarif_par_kg[masse]
+    else:
+        return tarif_par_kg[max(tarif_par_kg.keys())]
+    
+
+
+def find_best_config(elements, i=0, price=0):
     """
     Génère toutes les partitions possibles d'un ensemble donné.
     
     :param elements: List ou ensemble des éléments (par exemple, [1, 3, 5]).
     :return: Liste des partitions, chaque partition étant une liste de sous-ensembles.
     """
-    def tarif_par_masse(masse, tarif_par_kg):
-        if masse in tarif_par_kg:
-            return tarif_par_kg[masse]
-        else:
-            return tarif_par_kg[max(tarif_par_kg.keys())]
     if elements == []:
-        return [[]],[],[]  # Cas de base : partition vide pour un ensemble vide
+        return [[]]  # Cas de base : partition vide pour un ensemble vide
 
     first = elements[0]
     rest = elements[1:]
-    rest_partitions, all_masses,all_prices = find_best_config(rest, i+1)
+    rest_partitions = find_best_config(rest, i+1)
     all_partitions = []
     if i == 0 :
         best_price = float('inf')
@@ -41,7 +50,7 @@ def find_best_config(elements, i=0, price=0,tarif_par_kg={}):
             # print(f"new_partition: {new_partition}")
             if i==0:
                 mass = [sum(subset) for subset in new_partition]
-                price = sum([tarif_par_masse(masse, tarif_par_kg) for masse in mass])
+                price = sum([tarif_par_masse(masse) for masse in mass])
                 if price < best_price:
                     best_price = price
                     best_config = new_partition
@@ -52,7 +61,7 @@ def find_best_config(elements, i=0, price=0,tarif_par_kg={}):
     new_partition=[[first]] + partition
     if i==0:
         mass = [sum(subset) for subset in new_partition]
-        price = sum([tarif_par_masse(masse, tarif_par_kg) for masse in mass])
+        price = sum([tarif_par_masse(masse) for masse in mass])
         if price < best_price:
             best_price = price
             best_config = new_partition
@@ -64,7 +73,7 @@ def find_best_config(elements, i=0, price=0,tarif_par_kg={}):
     # print(f"all_masses {i}: {all_masses}")
     # print(f"all_prices {i}: {all_prices}")
 
-    return all_partitions, all_masses,all_prices
+    return all_partitions
 
 def partitions_array(elements):
     """
