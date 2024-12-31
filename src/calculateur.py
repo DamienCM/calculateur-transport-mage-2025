@@ -19,6 +19,8 @@ from tqdm import tqdm
 import numpy as np
 
 from utils import partitions_count, partitions_list_numpy, partitions_array, find_best_config, set_new_tarif
+from c import find_best_config as c_find_best_config
+from c import set_new_tarif as c_set_new_tarif
 
 class CalculateurFraisLivraison:
     def __init__(self):
@@ -56,12 +58,15 @@ class Transporteur:
             raise ValueError("Fichier tarifs invalide")
         tarifs = {}
         if self.nom == DPD:
+            tarifs = []
             with open(self.fichier_tarifs) as f:
                 # Ignorer les deux premières lignes
                 lignes = f.readlines()[2:]
                 for ligne in lignes:
                     poids, tarif = ligne.strip().split(',')
-                    tarifs[float(poids)] = float(tarif)
+                    # tarifs[float(poids)] = float(tarif)
+                    tarifs.append(np.array([float(poids),float(tarif)]))
+            tarifs = np.array(tarifs)
         elif self.nom == SCHENKER_PALETTE:
             with open(self.fichier_tarifs) as f:
                 lignes = f.readlines()[2:]
@@ -135,9 +140,20 @@ class Transporteur:
                 if self.VERBOSE:
                     print(f"\t[WARNING]Number of partitions : {number_of_partitions}")
                     print(f"\t[WARNING]This may take a while...")
+            
+            run_config="1"
             # Generates the set of all possible partitions
-            set_new_tarif(tarif_par_kg)
-            best_price,best_config = find_best_config(items)
+            if run_config=="2":
+                set_new_tarif(tarif_par_kg[:,0],tarif_par_kg[:,1])
+                best_price,best_config = find_best_config(items)
+            if run_config =="1":
+                weights = list(tarif_par_kg[:,0])
+                prices = list(tarif_par_kg[:,1])
+                c_set_new_tarif(weights,prices)
+                result = c_find_best_config(items)
+                best_price = result['price']
+                best_config = result['config']
+
 
                 # debug_list_main.append([i,f"prix des colis {debug_list_sub}", f"total prix partition : {sum(debug_list_sub)}"])
             if self.VERBOSE:
@@ -267,7 +283,7 @@ class Transporteur:
 
 if __name__ == "__main__":
     calculateur = CalculateurFraisLivraison()
-    config = 1
+    config = 2
     if config==1 :
         panier = [
             {"nom": "Article 1", "poids": 5},
@@ -281,8 +297,9 @@ if __name__ == "__main__":
             {"nom": "Article 9", "poids": 18},
             {"nom": "Article 10", "poids": 7},
             {"nom": "Article 11", "poids": 9},
+            {"nom": "Article 12", "poids": 9},
             ]
-        execution_time = timeit.timeit(lambda: calculateur.calculer(panier, "75"), number=5)
+        execution_time = timeit.timeit(lambda: calculateur.calculer(panier, "75"), number=20)
         print(f"Execution time: {execution_time:.2f} seconds")
     
     elif config==2:
