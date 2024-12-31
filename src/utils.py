@@ -64,8 +64,8 @@ def find_best_config(elements, i=0, price=0):
         # Ajouter 'first' à chaque sous-ensemble existant
         for j in range(len(partition)):
             new_partition = partition[:j] + [partition[j] + [first]] + partition[j+1:]
-            counter+=1
             if i==0:
+                counter+=1
                 # print(f"{new_partition=}")
                 mass = [sum(subset) for subset in new_partition]
                 price = sum([tarif_par_masse(masse) for masse in mass])
@@ -84,10 +84,10 @@ def find_best_config(elements, i=0, price=0):
             if price < best_price:
                 best_price = price
                 best_config = new_partition
+        all_partitions.append(new_partition)
     if i==0:
         print(f'counter={counter}')
         return best_price,best_config
-    all_partitions.append(new_partition)
     return all_partitions
 
 def partitions_array(elements):

@@ -141,18 +141,20 @@ class Transporteur:
                     print(f"\t[WARNING]Number of partitions : {number_of_partitions}")
                     print(f"\t[WARNING]This may take a while...")
             
-            run_config="2"
+            run_config="python-c"
             # Generates the set of all possible partitions
-            if run_config=="2":
+            if "python" in run_config:
                 set_new_tarif(tarif_par_kg[:,0],tarif_par_kg[:,1])
                 best_price,best_config = find_best_config(items)
-            if run_config =="1":
+                print(f"100% python : price : {best_price}\n For config : {best_config}")
+            if "c" in run_config:
                 weights = list(tarif_par_kg[:,0])
                 prices = list(tarif_par_kg[:,1])
                 c_set_new_tarif(weights,prices)
                 result = c_find_best_config(items)
                 best_price = result['price']
                 best_config = result['config']
+                print(f"c + python - price : {best_price}\n For config : {best_config}")
 
 
                 # debug_list_main.append([i,f"prix des colis {debug_list_sub}", f"total prix partition : {sum(debug_list_sub)}"])
@@ -283,21 +285,21 @@ class Transporteur:
 
 if __name__ == "__main__":
     calculateur = CalculateurFraisLivraison()
-    config = 2
+    config = 1
     if config==1 :
         panier = [
             {"nom": "Article 1", "poids": 5},
-            {"nom": "Article 2", "poids": 10},
+            {"nom": "Article 2", "poids": 7},
             {"nom": "Article 3", "poids": 15},
-            {"nom": "Article 4", "poids": 20},
-            {"nom": "Article 5", "poids": 25},
-            {"nom": "Article 6", "poids": 22},
+            {"nom": "Article 4", "poids": 6},
+            {"nom": "Article 5", "poids": 7},
+            {"nom": "Article 6", "poids": 4},
             {"nom": "Article 7", "poids": 3},
-            {"nom": "Article 8", "poids": 12},
-            {"nom": "Article 9", "poids": 18},
-            {"nom": "Article 10", "poids": 7},
+            {"nom": "Article 8", "poids": 6},
+            {"nom": "Article 9", "poids": 12},
+            {"nom": "Article 10", "poids": 2},
             {"nom": "Article 11", "poids": 9},
-            {"nom": "Article 12", "poids": 9},
+            # {"nom": "Article 12", "poids": 9},
             ]
         execution_time = timeit.timeit(lambda: calculateur.calculer(panier, "75"), number=1)
         print(f"Execution time: {execution_time:.2f} seconds")
