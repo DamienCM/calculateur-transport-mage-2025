@@ -7,8 +7,8 @@ import numpy as np
 @cache
 def partitions_count(n, k=0): 
     # checks if n is integer and n is greater than 0
-    if type(n) != int or n < 0:
-        raise ValueError("n must be a positive integer")
+    if n < 0:
+        raise ValueError(f"n must be a positive integer type n = {type(n)}")
     return int(n < 1) or k*partitions_count(n-1, k) + partitions_count(n-1, k+1)
 
 # tarif_par_kg = {}

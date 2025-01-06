@@ -21,6 +21,7 @@ import numpy as np
 from utils import partitions_count, partitions_list_numpy, partitions_array, find_best_config, set_new_tarif
 from c import find_best_config as c_find_best_config
 from c import set_new_tarif as c_set_new_tarif
+from tkinter import messagebox
 
 class CalculateurFraisLivraison:
     def __init__(self):
@@ -122,17 +123,13 @@ class Transporteur:
                 if self.VERBOSE:
                     print(f"\t[ERROR]Poids de l'article {element['nom']} superieur au poids maximum du colis")
                     print(f"\t[ERROR]Poids de l'article {element['nom']} : {element['poids']} kg")
-                    print("[WARNING]Calculating tarif for DPD : ERROR")
+                    print("\t[WARNING]Calculating tarif for DPD : ERROR")
                     return {"prix": "ERROR","arrangement":"ERROR"}
-
-
-            
 
         def optimiser_colis(items, max_weight, tarif_par_kg):
             items = sorted(items, reverse=True)
             n = len(items)
             number_of_partitions = partitions_count(n)
-
             if self.VERBOSE:
                 print("\t[INFO]Optimizing colis arrangement...")
                 print(f"\t[INFO]Number of partitions : {number_of_partitions}")
@@ -140,8 +137,11 @@ class Transporteur:
                 if self.VERBOSE:
                     print(f"\t[WARNING]Number of partitions : {number_of_partitions}")
                     print(f"\t[WARNING]This may take a while...")
-            
-            run_config="python-c"
+                msg_box_result = messagebox.askyesno(title= "Attention", message=f"Le calcul peut etre long pour DPD. Temps estimé supérieur à : {3e-6*number_of_partitions:.2f}s.\n Voulez vous proceder ?")
+                # msg_box_result=True
+                if not msg_box_result:
+                    return float("inf"), None
+            run_config="c"
             # Generates the set of all possible partitions
             if "python" in run_config:
                 set_new_tarif(tarif_par_kg[:,0],tarif_par_kg[:,1])
@@ -173,8 +173,8 @@ class Transporteur:
 
         total_cost, colis = optimiser_colis(poids_articles, POIDS_MAX_COLIS_DPD, self.tarifs)
         if self.VERBOSE:
-            print(f"[INFO]Total cost for DPD: {total_cost}€")
-            print(f"[INFO]Colis distribution: {colis}")
+            print(f"\t[INFO]Total cost for DPD: {total_cost}€")
+            print(f"\t[INFO]Colis distribution: {colis}")
         
         return {"prix": total_cost,"arrangement":colis}
     
@@ -282,26 +282,52 @@ class Transporteur:
                         return tarif
                     
 
-
+import matplotlib.pyplot as plt
 if __name__ == "__main__":
     calculateur = CalculateurFraisLivraison()
-    config = 1
+    config = 3
     if config==1 :
-        panier = [
-            {"nom": "Article 1", "poids": 5},
-            {"nom": "Article 2", "poids": 7},
-            {"nom": "Article 3", "poids": 15},
-            {"nom": "Article 4", "poids": 6},
-            {"nom": "Article 5", "poids": 7},
-            {"nom": "Article 6", "poids": 4},
-            {"nom": "Article 7", "poids": 3},
-            {"nom": "Article 8", "poids": 6},
-            {"nom": "Article 9", "poids": 12},
-            {"nom": "Article 10", "poids": 2},
-            {"nom": "Article 11", "poids": 9},
-            # {"nom": "Article 12", "poids": 9},
-            ]
-        execution_time = timeit.timeit(lambda: calculateur.calculer(panier, "75"), number=1)
+        panier = []
+        execution_times = []
+        for i in range(13):
+            print(f"Number of article : {i}")
+            panier.append({"nom": f"Article {i}", "poids": i})
+            execution_time = timeit.timeit(lambda: calculateur.calculer(panier, "75"), number=1)
+            execution_time = execution_time / 3
+            execution_times.append(execution_time)
+        length = np.array(range(9,13))
+        execution_times = np.array(execution_times[9:])
+        iterations_count = np.array([partitions_count(i) for i in length])
+        time_per_iter = execution_times/iterations_count
+        # Régression
+        # params = regression_exponentielle(length, execution_times)
+        # a, b = params
+        # a = 6.0042e-08
+        # b= 1.6403e+00
+        # a =  1.4113e-11
+        # b = 2.4184e+00
+        plt.plot(length,time_per_iter,label="measure")
+        length = np.linspace(length[0],length[-1])
+        # plt.plot(length, a * np.exp(b * length), 'r-', label=f'Régression: {a:.2f}*exp({b:.2f}x)')
+        plt.xlabel("taille panier")
+        plt.ylabel("Exec time par iter")
+        plt.legend()
+        # print(f"Équation trouvée: y = {a:.4e} * exp({b:.4e} * x)")
+        plt.show()
+        # panier = [
+        #     {"nom": "Article 1", "poids": 5},
+        #     {"nom": "Article 2", "poids": 7},
+        #     {"nom": "Article 3", "poids": 15},
+        #     {"nom": "Article 4", "poids": 6},
+        #     {"nom": "Article 5", "poids": 7},
+        #     {"nom": "Article 6", "poids": 4},
+        #     {"nom": "Article 7", "poids": 3},
+        #     {"nom": "Article 8", "poids": 6},
+        #     {"nom": "Article 9", "poids": 12},
+        #     {"nom": "Article 10", "poids": 2},
+        #     {"nom": "Article 11", "poids": 9},
+        #     # {"nom": "Article 12", "poids": 9},
+        #     ]
         print(f"Execution time: {execution_time:.2f} seconds")
     
     elif config==2:
@@ -310,5 +336,22 @@ if __name__ == "__main__":
             {"nom": "Article 2", "poids": 10},
             {"nom": "Article 3", "poids": 15},
             {"nom": "Article 3", "poids": 20},
+        ]
+        calculateur.calculer(panier, "75")
+
+    elif config==3:
+        panier = [
+            {"nom": "Article 1", "poids": 5},
+            {"nom": "Article 2", "poids": 10},
+            {"nom": "Article 3", "poids": 15},
+            {"nom": "Article 4", "poids": 20},
+            {"nom": "Article 5", "poids": 20},
+            {"nom": "Article 6", "poids": 20},
+            {"nom": "Article 7", "poids": 20},
+            {"nom": "Article 8", "poids": 20},
+            {"nom": "Article 9", "poids": 20},
+            {"nom": "Article 10", "poids": 20},
+            {"nom": "Article 11", "poids": 20},
+            {"nom": "Article 12", "poids": 20},
         ]
         calculateur.calculer(panier, "75")

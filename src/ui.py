@@ -4,27 +4,46 @@ from calculateur import CalculateurFraisLivraison
 calculateur = None
 result_text = None
 ajouter_article_button = None
+entry_id = 0
 
 def ajouter_article(event=None): 
-    global ajouter_article_button
+    global ajouter_article_button, entry_id
+    entry_id+=1
+    current_id = entry_id
     row = len(entries) + 1  # Ajuster la ligne pour ne pas chevaucher les boutons
-    ajouter_article_button.grid(row=row+1, columnspan=2)  # Déplacer le bouton en bas
-    label = tk.Label(input_frame, text=f"Poids de l'article {row} (kg):")
-    label.grid(row=row, column=0)
+    label = tk.Label(input_frame, text=f"Poids de l'article (kg):")
     entry = tk.Entry(input_frame)
-    entry.grid(row=row, column=1)
-    entries.append((label, entry))
     entry.focus_set()  # Positionner le curseur dans la nouvelle case
+    suppr_button = tk.Button(input_frame, text="X",padx=4,command=lambda:supprimer_article(current_id))
+    entries.append((label, entry, suppr_button,entry_id))
+    for index, (label,entry, suppr_button,entry_id) in enumerate(entries):
+        label.grid(row=index, column=0)
+        entry.grid(row=index, column=1)
+        suppr_button.grid(row=index, column=2, padx=5)
+        ajouter_article_button.grid(row=index+1, columnspan=2)  # Déplacer le bouton en bas
 
-def supprimer_article(event=None):
-    if entries and not entries[-1][1].get():
-        label, entry = entries.pop()
+
+def supprimer_article(line_id, event=None):
+    print(line_id)
+    index_found = None
+    for index,(label, entry, button, entry_id) in enumerate(entries) :
+        if entry_id == line_id:
+            index_found = index
+            print(f"deleting id : {entry_id} at index {index}, with label ={label}")
+            break
+    if index_found is None :
+        raise ValueError(f"Incorrect id to delete {line_id}")
+    if entries and not len(entries)==1:
+        label, entry, button, entry_id = entries.pop(index_found)
         label.destroy()
         entry.destroy()
+        button.destroy()
 
 def calculer_frais():
     try:
-        panier = [{'nom': f'article{i+1}', 'poids': float(entry.get())} for i, (label, entry) in enumerate(entries) if entry.get()]
+        panier = [{'nom': f'article{i+1}', 'poids': float(entry.get())} for i, (label, entry, button, entry_id) in enumerate(entries) if entry.get()]
+        poids_articles = [ p["poids"] for p in panier]
+        
         departement = departement_entry.get()
         resultats = calculateur.calculer(panier, departement)
         
@@ -38,7 +57,7 @@ def calculer_frais():
         results_text_schenker_messagerie.set(f"Prix Schenker messagerie : {prix_schenker_messagerie:.2f}€")
         
         min_prix = min(prix_dpd, prix_schenker_palette, prix_schenker_messagerie)
-        result_text.set(f"Resultats : \n")
+        result_text.set(f"Resultats pour les articles de poids : \n {poids_articles}")
         
         # Highlight the lowest price in red
         if min_prix == prix_dpd:
@@ -91,7 +110,7 @@ def initialiser_interface(input_calculateur):
 
 
     root.bind('<Return>', ajouter_article)  # Lier la touche Entrée à la fonction ajouter_article
-    root.bind('<BackSpace>', supprimer_article)  # Lier la touche Retour arrière à la fonction supprimer_article
+    # root.bind('<BackSpace>', supprimer_article)  # Lier la touche Retour arrière à la fonction supprimer_article
 
     # Result display
     result_text = tk.StringVar(value="Resultats : \n")
