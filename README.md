@@ -20,4 +20,4 @@ python src/__main__.py
 ```
 
 ## Auteurs
-- Votre Nom
+- DCM
