@@ -51,6 +51,7 @@ def calculer_frais():
         prix_dpd = float(resultats['dpd']['prix'])
         prix_schenker_palette = float(resultats['schenker_palette'])
         prix_schenker_messagerie = float(resultats['schenker_messagerie'])
+        
         results_text_dpd.set(f"Prix dpd : {prix_dpd:.2f}€")
         arrangement_text_dpd.set(f"Arrangement dpd : {resultats['dpd']['arrangement']}")
         results_text_schenker_palette.set(f"Prix Schenker palette : {prix_schenker_palette:.2f}€")

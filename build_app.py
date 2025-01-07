@@ -5,9 +5,11 @@ import os
 from pathlib import Path
 
 def build_windows_app():
-    # Ensure the dist directory is clean
+    # Clean previous builds
     if os.path.exists("dist"):
         shutil.rmtree("dist")
+    if os.path.exists("installation_package"):
+        shutil.rmtree("installation_package")
     
     # Project structure
     project_root = Path(".")
@@ -15,7 +17,10 @@ def build_windows_app():
     data_dir = project_root / "data"
     icons_dir = project_root / "icons"
     
-    # Define icon path - assuming you have an .ico file in icons directory
+    # Application name (with spaces)
+    APP_NAME = "Calculateur Transports"
+    
+    # Define icon path
     icon_path = str(icons_dir / "Logo-MAGE-Application.ico")  # Update with your actual icon name
     
     # Collect all source files
@@ -24,41 +29,20 @@ def build_windows_app():
         raise FileNotFoundError("No Python source files found in src directory")
     
     # Identify main script (assuming it's in src directory)
-    main_script = str(src_files[0])  # Update this to point to your actual main script
-    
-    # Define data files to include
-    datas = [
-        # Include all CSV files from data directory
-        (str(data_dir), "data"),
-        # Include icons
-        (str(icons_dir), "icons"),
-        # Include any other source files that might be needed for compilation
-        (str(src_dir), "src")
-    ]
-    
-    # Convert to PyInstaller format
-    data_args = [f"--add-data={src};{dst}" for src, dst in datas]
-    
-    # Add hidden imports for any modules that might be dynamically imported
-    hidden_imports = [
-        '--hidden-import=numpy',  # Add any other required imports
-        '--hidden-import=pandas'
-    ]
+    main_script = str("src/__main__.py")  # Update this to point to your actual main script
     
     # PyInstaller command line arguments
     args = [
         main_script,
-        '--name=Calculateur Transports',  # Replace with your app name
-        '--onefile',  # Create a single executable
-        # '--noconsole',  # Don't show console window
-        '--clean',  # Clean cache
+        f'--name={APP_NAME}',
+        '--onedir',  # Changed from onefile to onedir
+        # '--noconsole',
+        '--clean',
         f'--icon={icon_path}' if os.path.exists(icon_path) else None,
-        # Add the compiled library directory to PATH
         f'--paths={src_dir}',
-        # Force inclusion of binary dependencies
         '--add-binary=%s;.' % str(src_dir),
-        *data_args,
-        *hidden_imports
+        '--hidden-import=numpy',
+        '--hidden-import=pandas'
     ]
     
     # Remove None values
@@ -67,31 +51,47 @@ def build_windows_app():
     # Run PyInstaller
     PyInstaller.__main__.run(args)
     
-    # Create installation folder
+    # Create installation folder structure
     install_dir = Path("installation_package")
     install_dir.mkdir(exist_ok=True)
     
-    # Move executable and create structure
-    shutil.move(f"dist/Calculateur Transports.exe", install_dir / "Calculateur Transports.exe")
+    # Copy the entire dist directory content
+    app_dir = Path("dist") / APP_NAME
+    if app_dir.exists():
+        shutil.copytree(app_dir, install_dir / APP_NAME / "bin", dirs_exist_ok=True)
+    else:
+        raise FileNotFoundError(f"Build directory not found: {app_dir}")
     
-    # Create a basic README
+    # Copy project folders
+    if data_dir.exists():
+        shutil.copytree(data_dir, install_dir / APP_NAME / "data", dirs_exist_ok=True)
+    if icons_dir.exists():
+        shutil.copytree(icons_dir, install_dir / APP_NAME / "icons", dirs_exist_ok=True)
+    shutil.copy2(src_dir/"partition_optimizer.c", install_dir / APP_NAME / "bin")
+    
+    # Create README
     readme_content = """
-    Application Installation Instructions
+    Calculateur Transports - Instructions d'installation
     
-    1. Double click YourAppName.exe to start the application
-    2. All required data files are included in the package
-    3. For support, contact: your@email.com
+    1. Extrayez tout le contenu de ce fichier ZIP dans un dossier de votre choix
+    2. Ouvrez le dossier "Calculateur Transports"
+    3. Double-cliquez sur "Calculateur Transports.exe" pour démarrer l'application
+    4. Pour le support, contactez : your@email.com
     
-    Note: The first run might take a few moments as the application initializes.
+    Note : Ne déplacez ni ne supprimez aucun des fichiers ou dossiers - ils sont tous nécessaires au bon fonctionnement de l'application.
     """
     
-    with open(install_dir / "README.txt", "w") as f:
+    with open(install_dir / "README.txt", "w", encoding='utf-8') as f:
         f.write(readme_content)
     
     # Create ZIP file
-    shutil.make_archive("Calculateur Transports Installer", "zip", install_dir)
+    zip_name = "Calculateur_Transports_Installation"
+    if os.path.exists(f"{zip_name}.zip"):
+        os.remove(f"{zip_name}.zip")
+    shutil.make_archive(zip_name, "zip", install_dir)
     
     print("Build completed successfully!")
+    print(f"Installation package created: {os.path.abspath(f'{zip_name}.zip')}")
 
 if __name__ == "__main__":
     build_windows_app()

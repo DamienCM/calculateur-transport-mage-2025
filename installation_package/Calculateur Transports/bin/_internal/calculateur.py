@@ -125,6 +125,7 @@ class Transporteur:
     def calculer_tarif_dpd(self, panier, departement):
         if self.VERBOSE:
             print("[INFO]Calculating tarif for DPD : ...")
+        
         # Check if the weight of an article is greater than the maximum weight of the colis
         for element in panier:
             if element['poids'] > POIDS_MAX_COLIS_DPD:
@@ -132,7 +133,7 @@ class Transporteur:
                     print(f"\t[ERROR]Poids de l'article {element['nom']} superieur au poids maximum du colis")
                     print(f"\t[ERROR]Poids de l'article {element['nom']} : {element['poids']} kg")
                     print("\t[WARNING]Calculating tarif for DPD : ERROR")
-                    return {"prix": float("inf"),"arrangement":None}
+                    return {"prix": "ERROR","arrangement":"ERROR"}
 
         def optimiser_colis(items, max_weight, tarif_par_kg):
             items = sorted(items, reverse=True)
@@ -164,6 +165,8 @@ class Transporteur:
                 print(f"\t[INFO]Best partition : {best_config}")
                 print("[INFO]Calculating tarif for DPD : DONE\n")
             return best_price, best_config
+
+
 
         poids_articles = [article['poids'] for article in panier]
 
