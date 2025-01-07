@@ -80,7 +80,7 @@ def calculer_frais():
     except Exception as e:
         result_text.set(f"Erreur: {e}")
 
-def initialiser_interface(input_calculateur):
+def initialiser_interface_tk(input_calculateur):
     global root, entries, calculateur, input_frame, button_frame, result_text, results_text_schenker_palette, results_text_schenker_messagerie, results_text_dpd, arrangement_text_dpd, departement_entry, result_label_dpd, arrangement_label_dpd, result_label_schenker_palette, result_label_schenker_messagerie
     calculateur = input_calculateur
     root = tk.Tk()

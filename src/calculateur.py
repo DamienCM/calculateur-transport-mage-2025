@@ -17,15 +17,16 @@ print("Loading numpy : ...")
 import numpy as np
 print("Loading numpy : DONE")
 print("Loading utils : ...")
-from utils import partitions_count
+from utils import partitions_count, tarif_par_masse,set_new_tarif
 print("Loading utils : DONE")
 print("Loading C : ...")
 from c import find_best_config as c_find_best_config
 from c import set_new_tarif as c_set_new_tarif
 print("Loading C : DONE")
-print("Loading tkinter.messagebox : ...")
-from tkinter import messagebox
-print("Loading tkinter.messagebox : DONE")
+print("Loading qt .messagebox : ...")
+from PyQt5.QtWidgets import QApplication,QMessageBox,QWidget
+print("Loading qt messagebox  : DONE")
+import sys
 
 class CalculateurFraisLivraison:
     def __init__(self):
@@ -39,9 +40,11 @@ class CalculateurFraisLivraison:
         resultats = {}
         for nom, transporteur in self.transporteurs.items():
             tarif = transporteur.calculer_tarif(panier, departement)
-            if tarif is not None:
-                resultats[nom] = tarif
+            resultats[nom] = tarif
         return resultats
+
+
+    
 
 
 class Transporteur:
@@ -132,10 +135,22 @@ class Transporteur:
                     print(f"\t[ERROR]Poids de l'article {element['nom']} superieur au poids maximum du colis")
                     print(f"\t[ERROR]Poids de l'article {element['nom']} : {element['poids']} kg")
                     print("\t[WARNING]Calculating tarif for DPD : ERROR")
-                    return {"prix": float("inf"),"arrangement":None}
+                    return None
+        def sort_and_permute(list1, list2):
+            # Combine both lists into a list of tuples
+            combined = list(zip(list1, list2))
+            
+            # Sort the combined list based on the first list
+            combined_sorted = sorted(combined, key=lambda x: x[0])
+            
+            # Unzip the combined sorted list back into two lists
+            sorted_list1, permuted_list2 = zip(*combined_sorted)
+            
+            # Convert the result back to lists (since zip returns tuples)
+            return list(sorted_list1), list(permuted_list2)
+        def optimiser_colis(items, items_label, max_weight, tarif_par_kg):
 
-        def optimiser_colis(items, max_weight, tarif_par_kg):
-            items = sorted(items, reverse=True)
+            items,items_label = sort_and_permute(items,items_label)
             n = len(items)
             number_of_partitions = partitions_count(n)
             if self.VERBOSE:
@@ -145,34 +160,68 @@ class Transporteur:
                 if self.VERBOSE:
                     print(f"\t[WARNING]Number of partitions : {number_of_partitions}")
                     print(f"\t[WARNING]This may take a while...")
-                msg_box_result = messagebox.askyesno(title= "Attention", message=f"Le calcul peut etre long pour DPD. Temps estimé supérieur à : {3e-6*number_of_partitions:.2f}s.\n Voulez vous proceder ?")
-                # msg_box_result=True
-                if not msg_box_result:
-                    return float("inf"), None
+                try :
+                    parent = QWidget()
+                    qm_result = QMessageBox.question(parent,'Attention', 
+                                            f"Le calcul peut etre long pour DPD. Temps estimé supérieur à : {3e-6*number_of_partitions:.2f}s.\n Voulez vous proceder ?",
+                                            QMessageBox.Yes | QMessageBox.No,
+                                            QMessageBox.No)
+                    # msg_box_result=True
+                    if qm_result == QMessageBox.No : 
+                        return float("inf"), None
+                except Exception as e: 
+                    print(e)
             # Generates the set of all possible partitions
 
             weights = list(tarif_par_kg[:,0])
             prices = list(tarif_par_kg[:,1])
             c_set_new_tarif(weights,prices)
+            set_new_tarif(weights,prices)
             result = c_find_best_config(items)
             best_price = result['price']
             best_config = result['config']
+            # from best config retrieve corresponding labels 
+            best_config_labels=[]
+            for group in best_config:
+                current_group_labels=[]
+                for article in group:
+                    if article not in items:
+                        raise ValueError("Article not found")
+                    current_group_labels.append(items_label[items.index(article)])
+                best_config_labels.append(current_group_labels)
+                    
             print(f"\t [INFO] C + python - price : {best_price}\n For config : {best_config}")
 
             if self.VERBOSE:
                 print(f"\t[INFO]Minimum cost : {best_price}€")
                 print(f"\t[INFO]Best partition : {best_config}")
                 print("[INFO]Calculating tarif for DPD : DONE\n")
-            return best_price, best_config
+            return best_price, (best_config,best_config_labels)
 
         poids_articles = [article['poids'] for article in panier]
+        nom_articles = [article["nom"] for article in panier]
 
-        total_cost, colis = optimiser_colis(poids_articles, POIDS_MAX_COLIS_DPD, self.tarifs)
-        if self.VERBOSE:
-            print(f"\t[INFO]Total cost for DPD: {total_cost}€")
-            print(f"\t[INFO]Colis distribution: {colis}")
-        
-        return {"prix": total_cost,"arrangement":colis}
+        total_cost, colis = optimiser_colis(poids_articles, nom_articles, POIDS_MAX_COLIS_DPD, self.tarifs)
+        if colis is not None:
+            colis_masses, colis_labels = colis
+            prix_colis = [ tarif_par_masse(sum(colis)) for colis in colis_masses ]
+            total_masses_colis = [ sum(colis) for colis in colis_masses ]
+            if self.VERBOSE:
+                print(f"\t[INFO]Total cost for DPD: {total_cost}€")
+                print(f"\t[INFO]Colis distribution: {colis_masses}")
+                print(f"\t[INFO]Colis distribution: {colis_labels}")
+            
+            return {"prix": total_cost,
+                    "arrangement (masses)":colis_masses,
+                    "arrangement (labels)": colis_labels,
+                    "prix_colis":prix_colis,
+                        "masses colis":total_masses_colis}
+        else :
+            if self.VERBOSE:
+                print(f"\t[INFO]Total cost for DPD: NOT CALCULATED")
+                print(f"\t[INFO]Colis distribution: NOT CALCULATED")
+                print(f"\t[INFO]Colis distribution: NOT CALCULATED")     
+            return None     
     
     def calculer_tarif_schenker_palette(self, panier, departement, nbre_palette = 1, verbose=False):
         poids_total = 0
