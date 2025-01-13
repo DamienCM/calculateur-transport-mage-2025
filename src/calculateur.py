@@ -1,18 +1,3 @@
-DPD_PATH = '../data/dpd.csv'
-SCHENKER_PALETTE_PATH = '../data/schenker_palette.csv'
-SCHENKER_MESSAGERIE_PATH = '../data/schenker_messagerie.csv'
-
-DPD = 'dpd'
-SCHENKER_PALETTE = 'schenker_palette'
-SCHENKER_MESSAGERIE = 'schenker_messagerie'
-
-POIDS_MAX_COLIS_DPD = 30 # kg
-SEUIL_PALETTE_SCHENKER_MESSAGERIE = 200 # kg
-# SEUIL_PALETTE_SCHENKER_MESSAGERIE = 200 # kg
-SEUIL_PRIX_AU_KG_MESSAGERIE_SCHENKER = 100 # kg
-MAX_POIDS_MESSAGERIE_SCHENKER = 1000 # kg
-SEUIL_WARNING_ITERATIONS = 10000
-
 print("Loading numpy : ...")
 import numpy as np
 print("Loading numpy : DONE")
@@ -27,14 +12,43 @@ print("Loading qt .messagebox : ...")
 from PyQt5.QtWidgets import QApplication,QMessageBox,QWidget
 print("Loading qt messagebox  : DONE")
 import sys
+from collections import Counter
+
 
 class CalculateurFraisLivraison:
     def __init__(self):
-        self.transporteurs = {
-            'dpd': Transporteur(DPD, DPD_PATH),
-            'schenker_palette': Transporteur(SCHENKER_PALETTE, SCHENKER_PALETTE_PATH),
-            'schenker_messagerie': Transporteur(SCHENKER_MESSAGERIE, SCHENKER_MESSAGERIE_PATH)
+        self.options = {
+            "SEUIL_COMPACTAGE" : 2, #kg seuil des groupements d'articles legers 
+            "SEUIL_ARTICLE_LEGER" : 1,#kg en dessosus on considere l'article comme leger
+            "MAX_POIDS_MESSAGERIE_SCHENKER" : 1000, # kg
+            "POIDS_MAX_COLIS_DPD" : 30, # kg
+            "DPD_PATH" : '../data/dpd.csv',
+            "SCHENKER_PALETTE_PATH" : '../data/schenker_palette.csv',
+            "SCHENKER_MESSAGERIE_PATH" : '../data/schenker_messagerie.csv',
+
+            "DPD" : 'dpd',
+            "SCHENKER_PALETTE" : 'schenker_palette',
+            "SCHENKER_MESSAGERIE" : 'schenker_messagerie',
+
+            "SEUIL_PALETTE_SCHENKER_MESSAGERIE" : 200, # kg
+            # SEUIL_PALETTE_SCHENKER_MESSAGERIE = 200, # kg
+            "SEUIL_PRIX_AU_KG_MESSAGERIE_SCHENKER" : 100, # kg
+            "SEUIL_WARNING_ITERATIONS" : 10000,
         }
+
+        self.transporteurs = {
+            'dpd': Transporteur(self.options["DPD"], self.options["DPD_PATH"],self.options),
+            'schenker_palette': Transporteur(self.options["SCHENKER_PALETTE"], self.options["SCHENKER_PALETTE_PATH"],self.options),
+            'schenker_messagerie': Transporteur(self.options["SCHENKER_MESSAGERIE"], self.options["SCHENKER_MESSAGERIE_PATH"],self.options)
+        }
+
+
+    def set_options(self,options):
+        for key,value in options.items():
+            self.options[key] = value
+        for key,trans in self.transporteurs.items():
+            trans.set_options(self.options)
+        return 0
 
     def calculer(self, panier, departement):
         resultats = {}
@@ -43,30 +57,64 @@ class CalculateurFraisLivraison:
             resultats[nom] = tarif
         return resultats
 
+    def compact_shopping_cart(self,panier):
+        """ Tweaking method to reduce calculation time : regroup small articles """
+        light_articles = []
+        panier_sorted = []
+        for article in panier :
+            mass = float(article['poids'])
+            if mass < self.options["SEUIL_ARTICLE_LEGER"]:
+                light_articles.append(article)
+            else :
+                panier_sorted.append(article)
+        current_group = []
+        current_mass = 0
+        light_groups = []
+        for article in light_articles:
+            current_group.append(article['nom'])
+            current_mass += float(article['poids'])
+            if current_mass > self.options["SEUIL_COMPACTAGE"] :
+                counts = Counter(current_group)
+                label = " + ".join([f"{count}x {key}" for key, count in counts.items()])
+                light_groups.append({"nom":label, 'poids':current_mass})
+                current_mass=0
+                current_group=[]
+        if current_mass>0:
+            counts = Counter(current_group)
+            label = " + ".join([f"{count}x {key}" for key, count in counts.items()])
+            light_groups.append({"nom":label, 'poids':current_mass})
+        
 
+        panier = panier_sorted + light_groups
+        print(f'[INFO] Panier compacted : \n {panier}')
+        return panier
     
 
 
 class Transporteur:
-    def __init__(self, nom, fichier_tarifs):
+    def __init__(self, nom, fichier_tarifs,options):
         self.VERBOSE = True
         if self.VERBOSE:
             print(f"[INFO]Initializing {nom} : ...")
         self.nom = nom
         self.fichier_tarifs = fichier_tarifs
+        self.options = dict(options)
         self.tarifs = self.charger_tarifs()
         if self.VERBOSE:
             print(f"[INFO]Initializing {nom} : DONE")
             print(f"----------------------------------")
 
+    def set_options(self,options):
+        self.options = dict(options)
+
     def charger_tarifs(self):
         if self.VERBOSE:
             print(f"\t[INFO]Loading tarifs {self.nom} : ...")
-        if self.fichier_tarifs not in [DPD_PATH, SCHENKER_PALETTE_PATH, SCHENKER_MESSAGERIE_PATH]:
+        if self.fichier_tarifs not in [self.options["DPD_PATH"], self.options["SCHENKER_PALETTE_PATH"], self.options["SCHENKER_MESSAGERIE_PATH"]]:
             raise ValueError("Fichier tarifs invalide")
         tarifs = {}
         try :
-            if self.nom == DPD:
+            if self.nom == self.options["DPD"]:
                 tarifs = []
                 with open(self.fichier_tarifs) as f:
                     # Ignorer les deux premières lignes
@@ -76,7 +124,7 @@ class Transporteur:
                         # tarifs[float(poids)] = float(tarif)
                         tarifs.append(np.array([float(poids),float(tarif)]))
                 tarifs = np.array(tarifs)
-            elif self.nom == SCHENKER_PALETTE:
+            elif self.nom == self.options["SCHENKER_PALETTE"]:
                 with open(self.fichier_tarifs) as f:
                     lignes = f.readlines()[2:]
                     last_departement = None
@@ -87,7 +135,7 @@ class Transporteur:
                             departement = departement + "_"
                         tarifs[departement] = [float(tarif1), float(tarif2), float(tarif3), float(tarif4), float(tarif5)]
                         last_departement = departement
-            elif self.nom == SCHENKER_MESSAGERIE:
+            elif self.nom == self.options["SCHENKER_MESSAGERIE"]:
                 with open(self.fichier_tarifs) as f:
                     lignes = f.readlines()
                     zone1 , zone2, zone3, zone4 = lignes[1].strip().split(':')[1].split(','), lignes[2].strip().split(':')[1].split(','), lignes[3].strip().split(':')[1].split(','), lignes[4].strip().split(':')[1].split(',')
@@ -116,11 +164,11 @@ class Transporteur:
         return tarifs
 
     def calculer_tarif(self, panier, departement):
-        if self.nom == DPD:
+        if self.nom == self.options["DPD"]:
             return self.calculer_tarif_dpd(panier, departement)
-        elif self.nom == SCHENKER_PALETTE:
+        elif self.nom == self.options["SCHENKER_PALETTE"]:
             return self.calculer_tarif_schenker_palette(panier, departement)
-        elif self.nom == SCHENKER_MESSAGERIE:
+        elif self.nom == self.options["SCHENKER_MESSAGERIE"]:
             return self.calculer_tarif_schenker_messagerie(panier, departement)
         else:
             return None
@@ -130,7 +178,7 @@ class Transporteur:
             print("[INFO]Calculating tarif for DPD : ...")
         # Check if the weight of an article is greater than the maximum weight of the colis
         for element in panier:
-            if element['poids'] > POIDS_MAX_COLIS_DPD:
+            if element['poids'] > self.options["POIDS_MAX_COLIS_DPD"]:
                 if self.VERBOSE:
                     print(f"\t[ERROR]Poids de l'article {element['nom']} superieur au poids maximum du colis")
                     print(f"\t[ERROR]Poids de l'article {element['nom']} : {element['poids']} kg")
@@ -156,7 +204,7 @@ class Transporteur:
             if self.VERBOSE:
                 print("\t[INFO]Optimizing colis arrangement...")
                 print(f"\t[INFO]Number of partitions : {number_of_partitions}")
-            if number_of_partitions > SEUIL_WARNING_ITERATIONS:
+            if number_of_partitions > self.options["SEUIL_WARNING_ITERATIONS"]:
                 if self.VERBOSE:
                     print(f"\t[WARNING]Number of partitions : {number_of_partitions}")
                     print(f"\t[WARNING]This may take a while...")
@@ -201,7 +249,7 @@ class Transporteur:
         poids_articles = [article['poids'] for article in panier]
         nom_articles = [article["nom"] for article in panier]
 
-        total_cost, colis = optimiser_colis(poids_articles, nom_articles, POIDS_MAX_COLIS_DPD, self.tarifs)
+        total_cost, colis = optimiser_colis(poids_articles, nom_articles, self.options["POIDS_MAX_COLIS_DPD"], self.tarifs)
         if colis is not None:
             colis_masses, colis_labels = colis
             prix_colis = [ tarif_par_masse(sum(colis)) for colis in colis_masses ]
@@ -231,7 +279,7 @@ class Transporteur:
             poids_total += article['poids']
         if self.VERBOSE:
             print("\t[INFO]Poids total", poids_total)
-        if poids_total <= SEUIL_PALETTE_SCHENKER_MESSAGERIE:
+        if poids_total <= self.options["SEUIL_PALETTE_SCHENKER_MESSAGERIE"]:
             if self.VERBOSE:
                 print("\t[WARNING] Poids total inferieur au seuil de palette")
                 print(f"\t[INFO]Poids total {poids_total} kg.")
@@ -264,9 +312,9 @@ class Transporteur:
         poids_total = 0
         for article in panier:
             poids_total += article['poids']
-        if not (poids_total > POIDS_MAX_COLIS_DPD  and poids_total <= SEUIL_PALETTE_SCHENKER_MESSAGERIE):
+        if not (poids_total > self.options["POIDS_MAX_COLIS_DPD"]  and poids_total <= self.options["SEUIL_PALETTE_SCHENKER_MESSAGERIE"]):
             if self.VERBOSE:
-                print(f"\t[WARNING] Poids total {poids_total} kg. Poids doit etre compris entre {POIDS_MAX_COLIS_DPD} et {SEUIL_PALETTE_SCHENKER_MESSAGERIE} kg") 
+                print(f"\t[WARNING] Poids total {poids_total} kg. Poids doit etre compris entre {self.options['POIDS_MAX_COLIS_DPD']} et {self.options['SEUIL_PALETTE_SCHENKER_MESSAGERIE']} kg") 
         if self.VERBOSE:
             print("\t[INFO]Poids total :", poids_total)
         # identifying the corresponding zone for the departement
@@ -295,10 +343,10 @@ class Transporteur:
         if self.VERBOSE:
             print("\t[INFO]Zone", zone)
             print(f"\t[INFO]Tarif zone {zone} : ", self.tarifs[f"tarifs_zone{zone}"])
-        if poids_total < SEUIL_PRIX_AU_KG_MESSAGERIE_SCHENKER:
+        if poids_total < self.options["SEUIL_PRIX_AU_KG_MESSAGERIE_SCHENKER"]:
             # calculating the tarif
             if self.VERBOSE:
-                print(f"\t[INFO]Tarification par tranches (>{SEUIL_PRIX_AU_KG_MESSAGERIE_SCHENKER} kg)")
+                print(f'\t[INFO]Tarification par tranches (>{self.options["SEUIL_PRIX_AU_KG_MESSAGERIE_SCHENKER"]} kg)')
             for i in range(len(self.tarifs["kgs"])):
                 if poids_total <= self.tarifs["kgs"][i]:
                     tarif = self.tarifs[f"tarifs_zone{zone}"][i]
@@ -307,9 +355,9 @@ class Transporteur:
                         print(f"[INFO]Calculating tarif for Schenker messagerie : DONE\n")
                     return tarif
         else :
-            if poids_total>MAX_POIDS_MESSAGERIE_SCHENKER:
+            if poids_total>self.options["MAX_POIDS_MESSAGERIE_SCHENKER"]:
                 if self.VERBOSE:
-                    print(f"\t[ERROR]Poids total {poids_total} kg. Poids doit etre inferieur a {MAX_POIDS_MESSAGERIE_SCHENKER} kg")
+                    print(f'\t[ERROR]Poids total {poids_total} kg. Poids doit etre inferieur a {self.options["MAX_POIDS_MESSAGERIE_SCHENKER"]} kg')
                     print("[ERROR]Calculating tarif for Schenker messagerie : poids total trop eleve\n")
                 return None
             else:

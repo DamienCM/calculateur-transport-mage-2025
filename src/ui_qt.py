@@ -7,11 +7,8 @@ from PyQt5.QtCore import Qt
 from PyQt5.QtGui import QIcon
 print("Loading Qt5 : DONE")
 import sys
-from collections import Counter
 
 PATH_ARTICLES_LIST = "../data/items.csv"
-SEUIL_COMPACTAGE = 2 #kg seuil des groupements d'articles legers 
-SEUIL_ARTICLE_LEGER = 1#kg en dessosus on considere l'article comme leger
 
 class ShippingCalculator(QMainWindow):
     def __init__(self, calculateur):
@@ -73,6 +70,7 @@ class ShippingCalculator(QMainWindow):
         dept_layout = QHBoxLayout(dept_widget)
         dept_layout.addWidget(QLabel("Département:"))
         self.departement_entry = QLineEdit()
+        self.departement_entry.setText("")
         self.departement_entry.setMaximumWidth(150)
         dept_layout.addWidget(self.departement_entry)
         button_layout.addWidget(dept_widget)
@@ -82,6 +80,7 @@ class ShippingCalculator(QMainWindow):
         dpd_layout = QHBoxLayout(dpd_max_widget)
         dpd_layout.addWidget(QLabel("Poids max dpd (kg):"))
         self.dpd_max_entry = QLineEdit()
+        self.dpd_max_entry.setText("30")
         self.dpd_max_entry.setMaximumWidth(150)
         dpd_layout.addWidget(self.dpd_max_entry)
         button_layout.addWidget(dpd_max_widget)
@@ -91,6 +90,7 @@ class ShippingCalculator(QMainWindow):
         threshold_layout = QHBoxLayout(threshold_widget)
         threshold_layout.addWidget(QLabel("Seuil petit colis (kg):"))
         self.threshold_entry = QLineEdit()
+        self.threshold_entry.setText("2")
         self.threshold_entry.setMaximumWidth(150)
         threshold_layout.addWidget(self.threshold_entry)
         button_layout.addWidget(threshold_widget)
@@ -153,6 +153,7 @@ class ShippingCalculator(QMainWindow):
         main_layout.addWidget(result_frame, 1)
         
         self.setGeometry(200, 200, 1200, 500)   #Load the dropdown content 
+   
     def loadArticlesList(self):
         articles_list = []
         csv_structure = ["Ref", "Nom", "Designation", "Prix", "Masse (kg)"]
@@ -444,45 +445,34 @@ class ShippingCalculator(QMainWindow):
         print(f"[INFO] Panier successfully parsed :\n {panier}")
         return panier
 
-    def compact_shopping_cart(self,panier):
-        """ Tweaking method to reduce calculation time : regroup small articles """
-        light_articles = []
-        panier_sorted = []
-        for article in panier :
-            mass = float(article['poids'])
-            if mass < SEUIL_ARTICLE_LEGER:
-                light_articles.append(article)
-            else :
-                panier_sorted.append(article)
-        current_group = []
-        current_mass = 0
-        light_groups = []
-        for article in light_articles:
-            current_group.append(article['nom'])
-            current_mass += float(article['poids'])
-            if current_mass > SEUIL_COMPACTAGE :
-                counts = Counter(current_group)
-                label = " + ".join([f"{count}x {key}" for key, count in counts.items()])
-                light_groups.append({"nom":label, 'poids':current_mass})
-                current_mass=0
-                current_group=[]
-        if current_mass>0:
-            counts = Counter(current_group)
-            label = " + ".join([f"{count}x {key}" for key, count in counts.items()])
-            light_groups.append({"nom":label, 'poids':current_mass})
-        
-
-        panier = panier_sorted + light_groups
-        print(f'[INFO] Panier compacted : \n {panier}')
-        return panier
+    def get_input_options(self):
+        max_dpd = self.dpd_max_entry.text()
+        seuil_mini = self.threshold_entry.text()
+        try :
+            max_dpd = float(max_dpd)
+            seuil_mini = float(seuil_mini)
+        except Exception as e :
+            print("[ERROR] Unable to convert to float : {e}")
+            return None
+        print('[INFO] Input options parsed successfully')
+        return {
+            'POIDS_MAX_COLIS_DPD':max_dpd,
+            'SEUIL_ARTICLE_LEGER':seuil_mini,
+            "SEUIL_COMPACTAGE":seuil_mini,
+        }
 
     def calculer_frais(self):
         try:
             panier = self.create_shopping_cart()
+            options = self.get_input_options()
+            try:
+                self.calculateur.set_options(options)
+            except Exception as e:
+                print(f"[ERROR] Could not set options : {e}")
             if panier == []:
                 print('[WARNING] Panier is empty ! ')
             
-            panier = self.compact_shopping_cart(panier)
+            panier = self.calculateur.compact_shopping_cart(panier)
             if len(panier)<10:
                 label_articles = "\n".join([f"{article['poids']}kg --> {article['nom']}" for article in panier])
             else :
@@ -509,7 +499,7 @@ class ShippingCalculator(QMainWindow):
                     dpd_arrangement_string += f"{resultats['dpd']['masses colis'][i]}kg ({resultats['dpd']['prix_colis'][i]}€) :\n"
                     for j in range(len(resultats['dpd']['arrangement (masses)'][i])):
                         if self.input_format == 'raw': 
-                            dpd_arrangement_string+=f"\t{resultats['dpd']['arrangement (masses)'][i][j]}\n"
+                            dpd_arrangement_string+=f"\t{resultats['dpd']['arrangement (masses)'][i][j]} kg\n"
                         else:
                             dpd_arrangement_string+=f"\t{resultats['dpd']['arrangement (labels)'][i][j]} ({resultats['dpd']['arrangement (masses)'][i][j]} kg)\n"
             else:
