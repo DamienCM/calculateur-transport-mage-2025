@@ -514,6 +514,7 @@ class ShippingCalculator(QMainWindow):
         """Show about dialog"""
         QMessageBox.about(self, 'À propos',
                          'Calculateur de Frais de Livraison\n\n'
+                         'd.cartier-millon@mage-application'
                          'Version 1.0\n'
                          '© 2024 MAGE')
 
