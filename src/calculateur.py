@@ -95,6 +95,7 @@ class CalculateurFraisLivraison:
 class Transporteur:
     def __init__(self, nom, fichier_tarifs,options):
         self.VERBOSE = True
+        self.warning_callback = None  # Add this to your class
         if self.VERBOSE:
             print(f"[INFO] Initializing {nom} : ...")
         self.nom = nom
@@ -107,6 +108,9 @@ class Transporteur:
             print(f"[INFO] Initializing {nom} : DONE")
             print(f"----------------------------------")
 
+    def set_warning_callback(self, callback):
+        self.warning_callback = callback
+    
     def set_options(self,options):
         self.options = dict(options)
 
@@ -259,18 +263,15 @@ class Transporteur:
                     print(f"\t[WARNING] Number of partitions : {number_of_partitions}")
                     print(f"\t[WARNING] This may take a while...")
                 try :
-                    parent = QWidget()
-                    qm_result = QMessageBox.question(parent,'Attention', 
-                                            f"Le calcul peut etre long pour DPD. Temps estimé supérieur à : {3e-6*number_of_partitions:.2f}s.\n Voulez vous proceder ?",
-                                            QMessageBox.Yes | QMessageBox.No,
-                                            QMessageBox.No)
-                    # msg_box_result=True
-                    if qm_result == QMessageBox.No : 
-                        return float("inf"), None
+                    message = f"Le calcul peut etre long pour DPD. Temps estimé supérieur à : {3e-6*number_of_partitions:.2f}s.\n Voulez vous proceder ?"
+                    should_continue = self.warning_callback(message)
+                    if not should_continue:
+                        print("\t[INFO] Prompt response : No. Aborting DPD calculation.")
+                        return float('inf'),None
+                    print("\t[INFO] Prompt response : OK. Continuing calculation.")
                 except Exception as e: 
                     print(e)
             # Generates the set of all possible partitions
-
             weights = list(tarif_par_kg[:,0])
             prices = list(tarif_par_kg[:,1])
             # Trick to handle max weight : over max : price = inf

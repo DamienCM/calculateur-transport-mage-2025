@@ -12,8 +12,51 @@ from PyQt5.QtWidgets import (
     QSizePolicy, QGraphicsDropShadowEffect
 )
 from PyQt5.QtCore import Qt, QTimer, QSize
-from PyQt5.QtGui import QColor, QPainter, QPen
+from PyQt5.QtGui import QColor, QPainter, QPen, QIcon
 import math
+
+from PyQt5.QtCore import QThread, pyqtSignal
+from typing import Dict, List, Any
+
+
+class CalculatorThread(QThread):
+    finished = pyqtSignal(dict)
+    error = pyqtSignal(str)
+    warning = pyqtSignal(str, name='warning')
+   
+    def __init__(self, calculator, panier: List[Dict], options: Dict[str, Any]):
+        super().__init__()
+        self.calculator = calculator
+        self.panier = panier
+        self.options = options
+        self.should_continue = True
+       
+        def warning_handler(message):
+            print("Warning handler called with message:", message)
+            self.warning.emit(message)
+            while not hasattr(self, 'warning_response'):
+                self.msleep(100)
+            print("Got warning response:", self.warning_response)
+            response = self.warning_response
+            delattr(self, 'warning_response')
+            return response
+       
+        transporteurs = list(self.calculator.transporteurs.values())
+        for transporteur in transporteurs:
+            transporteur.set_warning_callback(warning_handler)
+   
+    def run(self):
+        try:
+            print("Starting calculation...")
+            results = self.calculator.calculer(self.panier, self.options)
+            print("Calculation finished, results:", results)
+            if results:  
+                print("Emitting finished signal")
+                self.finished.emit(results)
+                print("Finished signal emitted")
+        except Exception as e:
+            print("Error in calculation:", str(e))
+            self.error.emit(str(e))
 
 class CalculationError(Exception):
     def __init__(self, messsage = "[ERROR] Unknown error happened during calculation"):
@@ -91,7 +134,7 @@ class StyleConstants:
                 font-family: {cls.FONT_FAMILY};
                 font-size: {cls.NORMAL_FONT_SIZE}px;
             }}
-            QPushButton {{
+            QPushButton#action-button {{  /* New specific style for action buttons */
                 height: {cls.BUTTON_HEIGHT}px;
                 background-color: {cls.PRIMARY_COLOR};
                 color: {cls.BUTTON_TEXT_COLOR};
@@ -100,25 +143,28 @@ class StyleConstants:
                 font-size: {cls.NORMAL_FONT_SIZE}px;
                 padding: 5px 15px;
             }}
-            QPushButton:hover {{
-                background-color: {cls.BUTTON_HOVER} ;  /* Slightly darker blue for hover */
+            QPushButton#action-button:hover {{
+                background-color: {cls.BUTTON_HOVER};
             }}
-            QPushButton:pressed {{
-                background-color: {cls.BUTTON_PRESSED};  /* Even darker blue for click */
+            QPushButton#action-button:pressed {{
+                background-color: {cls.BUTTON_PRESSED};
             }}
             QPushButton#delete-button {{
                 background-color: {cls.DANGER_COLOR};
                 width: {cls.DELETE_BUTTON_WIDTH}px;
                 height: {cls.DELETE_BUTTON_HEIGHT}px;
-                padding: 0;
-                font-size: 20px;
+                border-radius: {cls.CORNER_RADIUS}px;
+                font-family: {cls.FONT_FAMILY};
+                padding: 0px;
+                font-size: 15px;
+                text-align: center;
                 font-weight: bold;
             }}
             QPushButton#delete-button:hover {{
-                background-color: {cls.DELETE_BUTTON_HOVER};  /* Darker red for hover */
+                background-color: {cls.DELETE_BUTTON_HOVER};
             }}
             QPushButton#delete-button:pressed {{
-                background-color: {cls.DELETE_BUTTON_BACKGROUND};  /* Even darker red for click */
+                background-color: {cls.DELETE_BUTTON_BACKGROUND};
             }}
             QComboBox, QSpinBox {{
                 height: {cls.INPUT_HEIGHT}px;
@@ -464,6 +510,8 @@ class ShippingCalculator(QMainWindow):
     def init_ui(self) -> None:
         """Initialize the user interface"""
         self.setWindowTitle('Calculateur de Frais de Livraison')
+        icon = QIcon('../icons/Logo-MAGE-Application.ico')
+        self.setWindowIcon(icon)
         self.setGeometry(100, 100, 1600, 900)
         self.create_menu_bar()
         self.setup_central_widget()
@@ -488,7 +536,7 @@ class ShippingCalculator(QMainWindow):
         
         layout.addWidget(self.create_input_panel(), 2)
         layout.addWidget(self.create_control_panel(), 1)
-        layout.addWidget(self.create_result_panel(), 1)
+        layout.addWidget(self.create_result_panel(), 2)
         self.setup_loading_overlay()
 
     def create_menu_bar(self) -> None:
@@ -586,6 +634,7 @@ class ShippingCalculator(QMainWindow):
         
         # Add article button
         self.ajouter_article_button = QPushButton("Ajouter un article")
+        self.ajouter_article_button.setObjectName('action-button')
         self.ajouter_article_button.setFixedHeight(StyleConstants.BUTTON_HEIGHT)
         self.ajouter_article_button.clicked.connect(self.ajouter_article)
         layout.addWidget(self.ajouter_article_button)
@@ -642,8 +691,9 @@ class ShippingCalculator(QMainWindow):
         
         # Calculate button with special styling - full width at bottom
         self.calc_button = QPushButton("Calculer")
-        self.calc_button.setObjectName("calc_button")
-        self.calc_button.clicked.connect(self.calculer_frais_wrapper)
+        self.calc_button.setObjectName('action-button')
+        # self.calc_button.setObjectName("calc_button")
+        self.calc_button.clicked.connect(self.new_calculer_frais_wrapper)
         self.calc_button.setFixedHeight(StyleConstants.BUTTON_HEIGHT)
         layout.addWidget(self.calc_button)
         
@@ -753,7 +803,6 @@ class ShippingCalculator(QMainWindow):
         """Hide the loading overlay"""
         self.loading_overlay.hide()
 
-
     def load_articles_list(self):
         articles_list = []
         csv_structure = ["Ref", "Nom", "Designation", "Prix", "Masse (kg)"]
@@ -852,12 +901,6 @@ class ShippingCalculator(QMainWindow):
         """Placeholder for save functionality"""
         QMessageBox.information(self, 'Sauvegarde', 
                               'Fonctionnalité de sauvegarde à implémenter.')
-    
-    def init_UI(self):
-        """Initialize the main UI components"""
-        # self.setWindowProperties()
-        self.create_menu_bar()
-        self.setupCentralWidget()
         
     def clear_all(self):
         """Clear all entries and results"""
@@ -1074,6 +1117,31 @@ class ShippingCalculator(QMainWindow):
             print(f"[ERROR] Erreur critique durant le calcul. Le programme va se fermer. \n {e}")
             quit()            
 
+    # Remove the original calculer_frais_wrapper method
+    def new_calculer_frais_wrapper(self):
+        """Wrapper to handle calculation errors"""
+        try:
+            self.new_calculer_frais()
+        except CalculationError as e:
+            self.hide_loading_overlay()  # Make sure overlay is hidden
+            parent = QWidget()
+            QMessageBox.warning(
+                parent,
+                'Attention',
+                f"Le calcul n'a pas pu etre effectué : \n {e}",
+                QMessageBox.Ok,
+            )
+            print("[INFO] Error handled during calculation")
+        except Exception as e:
+            self.hide_loading_overlay()  # Make sure overlay is hidden
+            parent = QWidget()
+            QMessageBox.critical(
+                parent,
+                'Error',
+                f"Erreur critique durant le calcul. \n {e}",
+                QMessageBox.Ok,
+            )
+            print(f"[ERROR] Critical error during calculation: \n {e}")
 
     def calculer_frais(self):
         try:
@@ -1192,6 +1260,171 @@ class ShippingCalculator(QMainWindow):
             print(f"[WARNING] Value error calculating : {e}")
             raise CalculationError(f"[WARNING] Value error calculating : {e}")
 
+    def new_calculer_frais(self):
+        """Calculate shipping costs in a separate thread"""
+        try:
+            # Prepare data for calculation
+            panier = self.create_shopping_cart()
+            if not panier:
+                raise CalculationError('[WARNING] Panier is empty!')
+                
+            options = self.get_input_options()
+            if options is None:
+                raise CalculationError('[WARNING] Invalid options!')
+
+            # First do any pre-calculation checks in the main thread
+            # This will show any warning messages from the calculator
+            try:
+                self.calculator.set_options(options)
+                panier = self.calculator.compact_shopping_cart(panier)
+                # If you have a method to check if calculation will be long, call it here
+                if hasattr(self.calculator, 'check_calculation'):
+                    should_continue = self.calculator.check_calculation(panier, options)
+                    if not should_continue:
+                        return
+            except Exception as e:
+                raise CalculationError(str(e))
+
+            # Show loading overlay
+            self.show_loading_overlay()
+            
+            # Create and configure calculator thread
+            self.calc_thread = CalculatorThread(self.calculator, panier, options)
+            
+            # Connect signals - make sure these are properly connected
+            print("Connecting signals...")
+            self.calc_thread.finished.connect(self._handle_calculation_results)
+            self.calc_thread.error.connect(self._handle_calculation_error)
+            self.calc_thread.warning.connect(self._handle_warning)
+            self.calc_thread.finished.connect(self.hide_loading_overlay)
+            self.calc_thread.error.connect(self.hide_loading_overlay)
+            
+            print("Starting calculation thread")
+            self.calc_thread.start()
+            
+        except Exception as e:
+            print("Error in calculer_frais:", str(e))
+            self.hide_loading_overlay()
+            raise CalculationError(str(e))
+
+    def _handle_calculation_results(self, resultats):
+        """Handle the calculation results"""
+        print("Handling calculation results:", resultats)
+        try:
+            # Update DPD results
+            if "error" not in resultats['dpd']:
+                prix_dpd = float(resultats['dpd']['prix'])
+                self.result_labels['dpd_results'].setText(f"Prix dpd : {prix_dpd:.2f}€")
+            else:
+                self.result_labels['dpd_results'].setText(f"Prix DPD : Non calculé : {resultats['dpd']['error']}")
+                prix_dpd = float('inf')
+            
+            # Update Schenker palette results
+            if not 'error' in resultats['schenker_palette']:
+                prix_schenker_palette = float(resultats['schenker_palette']['prix'])
+                self.result_labels['schenker_palette'].setText(f"Prix Schenker palette : {prix_schenker_palette:.2f}€")
+            else:
+                self.result_labels['schenker_palette'].setText(f"Prix Schenker palette : {resultats['schenker_palette']['error']}")
+                prix_schenker_palette = float('inf')
+            
+            # Update Schenker messagerie results
+            if not 'error' in resultats['schenker_messagerie']:
+                prix_schenker_messagerie = float(resultats['schenker_messagerie']['prix'])
+                self.result_labels['schenker_messagerie'].setText(f"Prix Schenker messagerie : {prix_schenker_messagerie:.2f}€")
+            else:
+                self.result_labels['schenker_messagerie'].setText(f"Prix Schenker messagerie : {resultats['schenker_messagerie']['error']}")
+                prix_schenker_messagerie = float('inf')
+            
+            # Check if all calculations failed
+            if all('error' in resultats[key] for key in ['dpd', 'schenker_messagerie', 'schenker_palette']):
+                error_msg = "\n".join([
+                    f"- {key}: {resultats[key]['error']}" 
+                    for key in ['dpd', 'schenker_messagerie', 'schenker_palette']
+                ])
+                raise CalculationError(f"[ERROR] None could be calculated\n{error_msg}")
+            
+            # Update DPD arrangement display
+            dpd_arrangement_string = "Arrangement des colis DPD : \n"
+            if "error" not in resultats['dpd']:
+                for i, masses in enumerate(resultats['dpd']['arrangement (masses)']):
+                    dpd_arrangement_string += f"{resultats['dpd']['masses colis'][i]:2f}kg ({resultats['dpd']['prix_colis'][i]}€) :\n"
+                    for j, mass in enumerate(masses):
+                        if self.input_format == 'raw':
+                            dpd_arrangement_string += f"\t{mass} kg\n"
+                        else:
+                            dpd_arrangement_string += f"\t{resultats['dpd']['arrangement (labels)'][i][j]} ({mass} kg)\n"
+            
+            self.result_labels['dpd_arrangement'].setText(dpd_arrangement_string)
+            
+            # Highlight best price
+            min_prix = min(prix_dpd, prix_schenker_messagerie, prix_schenker_palette)
+            self._update_price_highlights(min_prix, prix_dpd, prix_schenker_messagerie, prix_schenker_palette)
+            
+            # Update basket display
+            panier = self.create_shopping_cart()
+            panier = self.calculator.compact_shopping_cart(panier)
+            if len(panier) < 10:
+                label_articles = "\n".join([f"{article['poids']}kg --> {article['nom']}" for article in panier])
+            else:
+                label_articles = "\n".join([f"{article['poids']}kg --> {article['nom']}" for article in panier[:10]])
+                label_articles += "\n ..."
+            self.result_labels['basket'].setText(f"Panier : \n{label_articles}")
+            
+            print("Finished handling results")
+        except Exception as e:
+            print("Error handling results:", str(e))
+            self._handle_calculation_error(str(e))
+
+    def _handle_calculation_error(self, error_msg):
+        """Handle calculation errors"""
+        self.hide_loading_overlay()
+        raise CalculationError(error_msg)
+
+    def _handle_warning(self, message):
+        """Handle warnings from the calculator thread"""
+        self.hide_loading_overlay()
+        
+        # Store the current application stylesheet
+        current_stylesheet = QApplication.instance().styleSheet()
+        
+        # Temporarily remove application stylesheet
+        QApplication.instance().setStyleSheet("")
+        
+        # Create message box
+        msg_box = QMessageBox(self)
+        msg_box.setWindowTitle('Attention')
+        msg_box.setText(message)
+        msg_box.setIcon(QMessageBox.Question)
+        msg_box.setStandardButtons(QMessageBox.Yes | QMessageBox.No)
+        msg_box.setDefaultButton(QMessageBox.No)
+        
+        # Show dialog and get response
+        qm_result = msg_box.exec_()
+        
+        # Restore application stylesheet
+        QApplication.instance().setStyleSheet(current_stylesheet)
+        
+        # Send response back to thread
+        self.calc_thread.warning_response = (qm_result == QMessageBox.Yes)
+        
+        if qm_result == QMessageBox.Yes:
+            self.show_loading_overlay()
+
+    def _update_price_highlights(self, min_prix, prix_dpd, prix_schenker_messagerie, prix_schenker_palette):
+        """Update the highlighting of prices"""
+        # Reset colors
+        for label in ['dpd_results', 'dpd_arrangement', 'schenker_palette', 'schenker_messagerie']:
+            self.result_labels[label].setStyleSheet("")
+        
+        # Highlight lowest price
+        red_style = "color: red;"
+        if min_prix == prix_dpd:
+            self.result_labels['dpd_results'].setStyleSheet(red_style)
+            self.result_labels['dpd_arrangement'].setStyleSheet(red_style)
+        elif min_prix == prix_schenker_palette:
+            self.result_labels['schenker_palette'].setStyleSheet(red_style)
+        else:
+            self.result_labels['schenker_messagerie'].setStyleSheet(red_style)
     
 
 def initialize_qt_interface(calculator) -> None:
