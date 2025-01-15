@@ -11,8 +11,9 @@ from PyQt5.QtWidgets import (
     QAction, QMessageBox, QComboBox, QSpinBox, QFormLayout,
     QSizePolicy, QGraphicsDropShadowEffect
 )
-from PyQt5.QtCore import Qt
-from PyQt5.QtGui import QColor
+from PyQt5.QtCore import Qt, QTimer, QSize
+from PyQt5.QtGui import QColor, QPainter, QPen
+import math
 
 @dataclass
 class StyleConstants:
@@ -34,11 +35,11 @@ class StyleConstants:
     
     # Dimensions
     BUTTON_HEIGHT = 40
-    INPUT_HEIGHT = 40
+    INPUT_HEIGHT = 20
     CORNER_RADIUS = 4
     PANEL_SPACING = 30
     WIDGET_SPACING = 20
-    SECTION_SPACING = 25
+    SECTION_SPACING = 10
     MIN_PANEL_WIDTH = 200
     MIN_PANEL_WIDTH_INPUT = 500
     SHADOW_BLUR = 10
@@ -52,7 +53,7 @@ class StyleConstants:
     NORMAL_FONT_SIZE = 12
     
     # Defaults
-    DEFAULT_DPD_MAX = "30"
+    DEFAULT_DPD_MAX = "29"
     DEFAULT_THRESHOLD = "2"
     
     # Paths
@@ -130,7 +131,13 @@ class StyleConstants:
             }}
 
             QComboBox::down-arrow {{
-                image: url(downarrow.png);
+                /* Creates a custom dropdown arrow using borders */
+                image: url(../icons/dropdown.svg);  /* Qt will use system default arrow */                border-left: 5px solid transparent;
+                width:15px;
+                height:15px;
+                border-left: 8px solid transparent;   /* Increase these values to make bigger */
+                border-right: 8px solid transparent;
+                margin-right: 8px;
             }}
 
             QComboBox:on {{
@@ -161,6 +168,184 @@ class StyleConstants:
                         
         """
 
+class LoadingSpinner(QWidget):
+    def __init__(self, parent=None, centerOnParent=True, disableParentWhenSpinning=True):
+        super().__init__(parent)
+        
+        self.centerOnParent = centerOnParent
+        self.disableParentWhenSpinning = disableParentWhenSpinning
+        
+        # Remove window modality as we're using an overlay
+        self.setAttribute(Qt.WA_TranslucentBackground)
+        
+        # Adjusted parameters for better visibility
+        self.angleOffset = 30
+        self.timerId = -1
+        self.angle = 0
+        self.delay = 80  # Slower rotation
+        self.displayedWhenStopped = False
+        self.color = QColor("#2196F3")  # Bright blue color
+        
+        self.roundness = 100.0
+        self.minimumTrailOpacity = 40  # Higher minimum opacity
+        self.trailFadePercentage = 90  # Less fade for better visibility
+        self.numberOfLines = 12
+        self.lineLength = 25  # Even longer lines
+        self.lineWidth = 6    # Even thicker lines
+        self.innerRadius = 25 # Even larger radius
+        
+        self.isSpinning = False
+        
+        self.timer = QTimer(self)
+        self.timer.timeout.connect(self.rotate)
+        self.updateSize()
+        self.updateTimer()
+        self.hide()
+        
+        # Force a minimum size
+        self.setMinimumSize(QSize(100, 100))
+
+    def paintEvent(self, QPaintEvent):
+        self.updatePosition()
+        painter = QPainter(self)
+        painter.fillRect(self.rect(), Qt.transparent)
+        painter.setRenderHint(QPainter.Antialiasing, True)
+        
+        if self.isSpinning:
+            for i in range(0, self.numberOfLines):
+                painter.save()
+                painter.translate(self.innerRadius + self.lineLength, self.innerRadius + self.lineLength)
+                rotateAngle = float(360 * i) / float(self.numberOfLines)
+                painter.rotate(rotateAngle + self.angle)
+                painter.translate(self.innerRadius, 0)
+                distance = self.lineCountDistanceFromPrimary(i, self.numberOfLines, self.trailFadePercentage, 
+                                                           self.minimumTrailOpacity, self.angle)
+                color = self.currentLineColor(distance, self.minimumTrailOpacity, self.color)
+                painter.setPen(QPen(color, self.lineWidth, Qt.SolidLine))
+                painter.drawLine(0, 0, self.lineLength, 0)
+                painter.restore()
+
+    def start(self):
+        self.isSpinning = True
+        self.show()
+        
+        if self.parentWidget and self.disableParentWhenSpinning:
+            self.parentWidget().setEnabled(False)
+            
+        if not self.timer.isActive():
+            self.timer.start()
+            self.angle = 0
+
+    def stop(self):
+        self.isSpinning = False
+        self.hide()
+        
+        if self.parentWidget() and self.disableParentWhenSpinning:
+            self.parentWidget().setEnabled(True)
+            
+        if self.timer.isActive():
+            self.timer.stop()
+
+    def rotate(self):
+        self.angle = (self.angle + self.angleOffset) % 360
+        self.update()
+
+    def updateSize(self):
+        size = (self.innerRadius + self.lineLength) * 2
+        self.setFixedSize(size, size)
+
+    def updateTimer(self):
+        self.timer.setInterval(self.delay)
+
+    def updatePosition(self):
+        if self.parentWidget() and self.centerOnParent:
+            parentRect = self.parentWidget().rect()
+            self.move(
+                parentRect.center().x() - self.width() / 2,
+                parentRect.center().y() - self.height() / 2
+            )
+
+    def lineCountDistanceFromPrimary(self, current, primary, fadePerc, minOpacity, angleCurrent):
+        distance = (primary - current) % primary
+        if distance > primary / 2:
+            distance = primary - distance
+        return math.pow(distance / (primary / 2), fadePerc) * (1 - minOpacity / 100) + minOpacity / 100
+
+    def currentLineColor(self, countDistance, minOpacity, colorinput):
+        color = QColor(colorinput)
+        color.setAlpha(round(minOpacity + ((255 - minOpacity) * countDistance)))
+        return color
+
+class LoadingOverlay(QWidget):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        
+        # Make the overlay stay on top
+        self.setAttribute(Qt.WA_TranslucentBackground)
+        
+        # Style the overlay and its components
+        self.setStyleSheet("""
+            LoadingOverlay {
+                background-color: rgba(0, 0, 0, 0);  /* Tranperent for main overlay */
+            }
+            QLabel {
+                color: black;
+                font-size: 16px;
+                font-weight: bold;
+                background-color: rgba(0, 0, 0, 0);  /* Tranparent */
+                padding: 5px;
+            }
+            QWidget#container {
+                background-color: rgba(0, 0, 0, 0);  /* Light gray */
+                border-radius: 10px;
+            }
+        """)
+        
+        # Create container widget with a unique object name for styling
+        self.container = QWidget(self)
+        self.container.setObjectName("container")
+        self.container.setFixedSize(200, 200)  # Fixed size for the container
+        
+        # Container layout
+        container_layout = QVBoxLayout(self.container)
+        container_layout.setSpacing(20)
+        container_layout.setContentsMargins(20, 20, 20, 20)
+        
+        # Create and add spinner
+        self.spinner = LoadingSpinner(centerOnParent=False)
+        self.spinner.setFixedSize(100, 100)  # Fixed size for the spinner
+        container_layout.addWidget(self.spinner, 0, Qt.AlignHCenter)
+        
+        # Create and add loading text
+        self.label = QLabel("Calcul en cours...")
+        self.label.setAlignment(Qt.AlignCenter)
+        container_layout.addWidget(self.label, 0, Qt.AlignHCenter)
+
+    def showEvent(self, event):
+        super().showEvent(event)
+        self.updatePosition()
+        self.spinner.start()
+        
+    def hideEvent(self, event):
+        super().hideEvent(event)
+        self.spinner.stop()
+    
+    def updatePosition(self):
+        if self.parent():
+            # Get parent center coordinates
+            parent_center_x = self.parent().width() // 2
+            parent_center_y = self.parent().height() // 2
+            
+            # Get container center offsets
+            container_center_x = self.container.width() // 2
+            container_center_y = self.container.height() // 2
+            
+            # Calculate top-left position for container to be centered
+            container_x = parent_center_x - container_center_x
+            container_y = parent_center_y - container_center_y
+            
+            # Move container to centered position
+            self.container.move(container_x, container_y)
 class ArticleEntry:
     """Represents a single article entry in the UI"""
     def __init__(self, parent: QWidget, entry_id: int, input_format: str, articles_list: List[Dict]):
@@ -208,6 +393,7 @@ class ArticleEntry:
 class ShippingCalculator(QMainWindow):
     """Main window class for the shipping calculator application"""
     PATH_ARTICLES_LIST = Path("../data/items.csv")
+    PATH_COUNTRY_LIST = Path("../data/country_list.csv")
 
     def __init__(self, calculator):
         super().__init__()
@@ -216,6 +402,7 @@ class ShippingCalculator(QMainWindow):
         self.entries: List[ArticleEntry] = []
         self.input_format = 'raw'
         self.articles_list = self._load_articles_list()
+        self.country_list = self._load_country_list()
         self.entries_layout = None
         
         self.init_ui()
@@ -246,11 +433,33 @@ class ShippingCalculator(QMainWindow):
         except Exception as e:
             print(f"Error loading articles list: {e}")
             return []
-        
+    
+    def _load_country_list(self) -> List[str]:
+        """Load articles list from CSV file"""
+        country_list = []
+
+        try:
+            with open(self.PATH_COUNTRY_LIST) as f:
+                # Skip first two rows
+                lines = f.readlines()[2:]
+                for line in lines:
+                    country = line.strip()
+                    country_list.append(country)
+                
+            print(f"Country list loaded successfully: {len(country_list)} countries")
+            return country_list
+            
+        except FileNotFoundError as e:
+            print(f"Error: Could not find country list file: {e}")
+            return []
+        except Exception as e:
+            print(f"Error loading country list : {e}")
+            return []
+
     def init_ui(self) -> None:
         """Initialize the user interface"""
         self.setWindowTitle('Calculateur de Frais de Livraison')
-        self.setGeometry(200, 200, 1200, 500)
+        self.setGeometry(100, 100, 1600, 900)
         self.create_menu_bar()
         self.setup_central_widget()
         
@@ -275,6 +484,7 @@ class ShippingCalculator(QMainWindow):
         layout.addWidget(self.create_input_panel(), 2)
         layout.addWidget(self.create_control_panel(), 1)
         layout.addWidget(self.create_result_panel(), 1)
+        self.setup_loading_overlay()
 
     def create_menu_bar(self) -> None:
         """Create the application menu bar"""
@@ -333,6 +543,7 @@ class ShippingCalculator(QMainWindow):
         frame.setGraphicsEffect(shadow)
         
         return frame
+    
     def create_input_panel(self):
         """Create the left panel with improved styling"""
         self.input_frame = self.create_styled_frame(panel='input')
@@ -406,6 +617,8 @@ class ShippingCalculator(QMainWindow):
         
         # Add form fields with increased spacing
         self.departement_entry = QLineEdit()
+        self.country_combobox = QComboBox()
+        self.country_combobox.addItems(self.country_list)
         self.dpd_max_entry = QLineEdit(StyleConstants.DEFAULT_DPD_MAX)
         self.threshold_entry = QLineEdit(StyleConstants.DEFAULT_THRESHOLD)
         
@@ -413,6 +626,7 @@ class ShippingCalculator(QMainWindow):
             widget.setStyleSheet(widget.styleSheet() + f"margin-bottom: {StyleConstants.WIDGET_SPACING}px;")
         
         form.addRow("Département:", self.departement_entry)
+        form.addRow("Pays :", self.country_combobox)
         form.addRow("Poids max dpd (kg):", self.dpd_max_entry)
         form.addRow("Seuil petit colis (kg):", self.threshold_entry)
         
@@ -458,9 +672,13 @@ class ShippingCalculator(QMainWindow):
                 'title': 'Panier',
                 'labels': ['basket']
             },
-            'schenker': {
-                'title': 'Schenker',
-                'labels': ['schenker_palette', 'schenker_messagerie']
+            'palette': {
+                'title': 'Palette',
+                'labels': ['schenker_palette']
+            },
+            'messagerie': {
+                'title': 'Messagerie',
+                'labels': ['schenker_messagerie']
             },
             'dpd': {
                 'title': 'DPD',
@@ -513,7 +731,24 @@ class ShippingCalculator(QMainWindow):
             
         layout.addStretch()
         return self.result_frame
-   
+
+    def setup_loading_overlay(self):
+        """Initialize the loading overlay"""
+        self.loading_overlay = LoadingOverlay(self)
+        self.loading_overlay.hide()
+    
+    def show_loading_overlay(self):
+        """Show the loading overlay"""
+        # Make sure overlay covers the entire parent
+        self.loading_overlay.setGeometry(0, 0, self.width(), self.height())
+        self.loading_overlay.show()
+        self.loading_overlay.raise_()
+    
+    def hide_loading_overlay(self):
+        """Hide the loading overlay"""
+        self.loading_overlay.hide()
+
+
     def load_articles_list(self):
         articles_list = []
         csv_structure = ["Ref", "Nom", "Designation", "Prix", "Masse (kg)"]
@@ -665,9 +900,12 @@ class ShippingCalculator(QMainWindow):
         
         # Create widget using helper method, passing the current_id
         article_widget, components = self.setup_article_widget(current_id)
-        
+
         # Add widget to layout
         self.entries_layout.addWidget(article_widget)
+
+        if 'entry' in components:
+            components['entry'].setFocus()
         
         # Create entry data with common fields
         entry_data = {
@@ -701,7 +939,6 @@ class ShippingCalculator(QMainWindow):
             
             layout.addWidget(label)
             layout.addWidget(entry, 1)  # Give entry more stretch
-            entry.setFocus()
             
             result = {'entry': entry}
             
@@ -758,7 +995,7 @@ class ShippingCalculator(QMainWindow):
                     article_id = int(combobox_text[0])
                     article_name_or_ref = "".join(combobox_text[1:])
                     matching_weight = None
-                    for article in self.articlesList:
+                    for article in self.articles_list:
                         if article["id"]==article_id:
                             matching_weight=article["Masse (kg)"]
                     article_qty = int(entry_data['qty_box'].cleanText())
@@ -773,11 +1010,29 @@ class ShippingCalculator(QMainWindow):
         print(f"[INFO] Panier successfully parsed :\n {panier}")
         return panier
 
+    @staticmethod
+    def _is_valid_departement(departement : str) -> bool:
+        if type(departement) is not str :
+            return False
+        if len(departement)>2:
+            return False
+        if departement.isdigit():
+            return True
+        else: 
+            return False
+
     def get_input_options(self):
         max_dpd = self.dpd_max_entry.text()
         seuil_mini = self.threshold_entry.text()
+        country = self.country_combobox.currentText()
+        departement = self.departement_entry.text()
+
+        if not self._is_valid_departement(departement):
+            raise SyntaxError('Invalid departement entered')
+
         try :
             max_dpd = float(max_dpd)
+            int(departement)
             seuil_mini = float(seuil_mini)
         except Exception as e :
             print("[ERROR] Unable to convert to float : {e}")
@@ -787,6 +1042,8 @@ class ShippingCalculator(QMainWindow):
             'POIDS_MAX_COLIS_DPD':max_dpd,
             'SEUIL_ARTICLE_LEGER':seuil_mini,
             "SEUIL_COMPACTAGE":seuil_mini,
+            "country" : country,
+            "departement" : departement,
         }
 
     def calculer_frais(self):
@@ -807,40 +1064,62 @@ class ShippingCalculator(QMainWindow):
                 label_articles = "\n".join([f"{article['poids']}kg --> {article['nom']}" for article in panier[:10]])
                 label_articles+="\n ..."
 
-            departement = self.departement_entry.text()
-            
-            resultats = self.calculator.calculer(panier, departement)
-            if resultats['dpd'] is not None:
+            # Show loading overlay and ensure it's displayed
+            # self.loading_overlay.raise_()
+            self.show_loading_overlay()
+            # for _ in range(2):  # Process events multiple times to ensure display
+            #     QApplication.processEvents()
+            try:
+                # Perform calculation
+                resultats = self.calculator.calculer(panier, options)
+                QApplication.processEvents()  # Process any pending events
+            except Exception as e: 
+                print(f"[ERROR] Error during calculation {e}")
+            finally:
+                # Hide loading overlay after calculation (even if there's an error)
+                self.hide_loading_overlay()
+
+            if not "error" in resultats['dpd'] :
                 prix_dpd = float(resultats['dpd']['prix'])
                 self.result_labels['dpd_results'].setText(f"Prix dpd : {prix_dpd:.2f}€")
             else:
-                self.result_labels['dpd_results'].setText(f"Prix DPD : Non calculé")
+                self.result_labels['dpd_results'].setText(f"Prix DPD : Non calculé : {resultats['dpd']['error']}")
+                prix_dpd = float('inf')
                 
+            if not 'error' in resultats['schenker_palette']:
+                prix_schenker_palette = float(resultats['schenker_palette']['prix'])
+                self.result_labels['schenker_palette'].setText(f"Prix Schenker palette : {prix_schenker_palette:.2f}€")
+            else : 
+                prix_schenker_palette = 'Non calculé'
+                self.result_labels['schenker_palette'].setText(f"Prix Schenker palette : {resultats['schenker_palette']['error']}")
+                prix_schenker_palette = float('inf')
 
-            prix_schenker_palette = float(resultats['schenker_palette'])
-            prix_schenker_messagerie = float(resultats['schenker_messagerie'])
-            
+
+            if not 'error' in resultats['schenker_messagerie']:
+                prix_schenker_messagerie = float(resultats['schenker_messagerie']['prix'])
+                self.result_labels['schenker_messagerie'].setText(f"Prix Schenker messagerie : {prix_schenker_messagerie:.2f}€")
+
+            else : 
+                prix_schenker_messagerie = 'Non calculé'
+                self.result_labels['schenker_messagerie'].setText(f"Prix Schenker messagerie : {resultats['schenker_palette']['error']}")
+                prix_schenker_messagerie = float('inf')
+
 
             dpd_arrangement_string = "Arrangement des colis DPD : \n"
-            if resultats['dpd'] is not None:
+            if not 'error' in resultats['dpd']:
                 for i in range(len(resultats['dpd']['arrangement (masses)'])):
-                    dpd_arrangement_string += f"{resultats['dpd']['masses colis'][i]}kg ({resultats['dpd']['prix_colis'][i]}€) :\n"
+                    dpd_arrangement_string += f"{resultats['dpd']['masses colis'][i]:2f}kg ({resultats['dpd']['prix_colis'][i]}€) :\n"
                     for j in range(len(resultats['dpd']['arrangement (masses)'][i])):
                         if self.input_format == 'raw': 
                             dpd_arrangement_string+=f"\t{resultats['dpd']['arrangement (masses)'][i][j]} kg\n"
                         else:
                             dpd_arrangement_string+=f"\t{resultats['dpd']['arrangement (labels)'][i][j]} ({resultats['dpd']['arrangement (masses)'][i][j]} kg)\n"
-            else:
-                dpd_arrangement_string+="Non calculé"
 
             self.result_labels['dpd_arrangement'].setText(dpd_arrangement_string)
-            self.result_labels['schenker_palette'].setText(f"Prix Schenker palette : {prix_schenker_palette:.2f}€")
-            self.result_labels['schenker_messagerie'].setText(f"Prix Schenker messagerie : {prix_schenker_messagerie:.2f}€")
             
-            if resultats['dpd'] is not None:
-                min_prix = min(prix_dpd, prix_schenker_palette, prix_schenker_messagerie)
-            else:
-                min_prix = min(prix_schenker_palette, prix_schenker_messagerie)
+
+            min_prix = min(prix_dpd,prix_schenker_messagerie,prix_schenker_palette)
+
                 
             self.result_labels['basket'].setText(f"Panier : \n{label_articles}")
             
@@ -852,19 +1131,21 @@ class ShippingCalculator(QMainWindow):
             
             # Highlight lowest price in red
             red_style = "color: red;"
-            if resultats['dpd'] is not None:
-                if min_prix == prix_dpd:
-                    self.result_labels['dpd_results'].setStyleSheet(red_style)
-                    self.result_labels['dpd_arrangement'].setStyleSheet(red_style)
+            if min_prix == prix_dpd:
+                self.result_labels['dpd_results'].setStyleSheet(red_style)
+                self.result_labels['dpd_arrangement'].setStyleSheet(red_style)
             elif min_prix == prix_schenker_palette:
                 self.result_labels['schenker_palette'].setStyleSheet(red_style)
             else:
                 self.result_labels['schenker_messagerie'].setStyleSheet(red_style)
-                
+                    
+        except SyntaxError as e:
+            self.result_labels['basket'].setText(f"Erreur: Departement invalide {e}")
+            print(f"[ERROR] Synthax error in departement : {e}")
+
         except ValueError as e:
-            self.result_labels['basket'].setText(f"Erreur: Veuillez entrer des poids valides : {e}")
-        # except Exception as e:
-        #     self.result_label.setText(f"Erreur: {e}")
+            self.result_labels['basket'].setText(f"Erreur: poids invalides {e}")
+            print(f"[ERROR] Value error calculating : {e}")
 
 def initialize_qt_interface(calculator) -> None:
     """Initialize and run the Qt application"""

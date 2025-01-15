@@ -54,7 +54,10 @@ def convert_result_to_python(c_result):
     return result
 
 # Wrapper functions
-def set_new_tarif(new_weights, new_prices):
+def set_new_tarif(new_weights, new_prices, max_weight):
+    for i in range(len(new_weights)):
+        if new_weights[i] > max_weight : 
+            new_prices[i] =  float('inf') 
     lib.set_new_tarif(
         np.array(new_weights, dtype=np.float64),
         np.array(new_prices, dtype=np.float64),

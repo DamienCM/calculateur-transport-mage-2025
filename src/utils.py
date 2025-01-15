@@ -14,10 +14,14 @@ def partitions_count(n, k=0):
 
 weights = []
 prices = []
-def set_new_tarif(new_weights, new_prices):
+def set_new_tarif(new_weights, new_prices, max_weight):
     global weights, prices
+    for i in range(len(new_weights)):
+        if new_weights[i] > max_weight : 
+            new_prices[i] =  float('inf') 
     weights = new_weights
     prices = new_prices
+
 @lru_cache(maxsize=None)
 
 def tarif_par_masse(masse):

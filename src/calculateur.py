@@ -25,6 +25,7 @@ class CalculateurFraisLivraison:
             "DPD_PATH" : '../data/dpd.csv',
             "SCHENKER_PALETTE_PATH" : '../data/schenker_palette.csv',
             "SCHENKER_MESSAGERIE_PATH" : '../data/schenker_messagerie.csv',
+            "COUNTRY_AVAILABLE_PATH" : '../data/country_supported.csv',
 
             "DPD" : 'dpd',
             "SCHENKER_PALETTE" : 'schenker_palette',
@@ -50,11 +51,11 @@ class CalculateurFraisLivraison:
             trans.set_options(self.options)
         return 0
 
-    def calculer(self, panier, departement):
+    def calculer(self, panier, options):
         resultats = {}
         for nom, transporteur in self.transporteurs.items():
-            tarif = transporteur.calculer_tarif(panier, departement)
-            resultats[nom] = tarif
+            results_transporteur = transporteur.calculer_tarif(panier, options)
+            resultats[nom] = results_transporteur
         return resultats
 
     def compact_shopping_cart(self,panier):
@@ -100,6 +101,8 @@ class Transporteur:
         self.fichier_tarifs = fichier_tarifs
         self.options = dict(options)
         self.tarifs = self.charger_tarifs()
+        self.available_countries = None
+        self.charger_liste_pays_disponible()
         if self.VERBOSE:
             print(f"[INFO]Initializing {nom} : DONE")
             print(f"----------------------------------")
@@ -163,19 +166,66 @@ class Transporteur:
             print(f"\t[INFO]Loading tarifs {self.nom} : DONE\n")
         return tarifs
 
-    def calculer_tarif(self, panier, departement):
-        if self.nom == self.options["DPD"]:
-            return self.calculer_tarif_dpd(panier, departement)
-        elif self.nom == self.options["SCHENKER_PALETTE"]:
-            return self.calculer_tarif_schenker_palette(panier, departement)
-        elif self.nom == self.options["SCHENKER_MESSAGERIE"]:
-            return self.calculer_tarif_schenker_messagerie(panier, departement)
-        else:
-            return None
+    def charger_liste_pays_disponible(self):
+        try :
+            if self.VERBOSE:
+                print('\t[INFO] Loading country list : ...')
+
+            with open(self.options["COUNTRY_AVAILABLE_PATH"]) as f: 
+                lines = f.readlines()
+                columns = [ c.strip().lower() for c in lines[0].strip().split(",")]
+                if self.nom not in columns:
+                    raise ValueError(f"{self.nom} not a column in {self.options['COUNTRY_AVAILABLE_PATH']} ")
+                csv_data = {  c.strip().lower():[] for c in columns }
+                #skip header
+                lines = lines[2:]
+                for line in lines :
+                    line_cells = line.strip().split(',')
+                    for row_index, cell_content in enumerate(line_cells):
+                        csv_data[columns[row_index]].append(cell_content.strip().lower())
+            self.available_countries = csv_data
+            if self.VERBOSE:
+                print('\t[INFO] Loading country list : DONE')   
+                print(f'\t[INFO] Country List : {csv_data}')   
+        except Exception as e:
+            print(f"[ERROR] Unhandled error during loading of country list : {e}")
+            return -1     
+        return 0
     
-    def calculer_tarif_dpd(self, panier, departement):
+    def is_country_available(self, country):
+        try :
+            available_countries_for_this_transporteur = self.available_countries[self.nom.strip().lower()]
+            if country.lower().strip() in available_countries_for_this_transporteur:
+                return True
+            else :
+                return False
+        except Exception as e:
+            print(f"[ERROR] Unhandled error during checking of available country : {e}")
+            return -1
+        
+
+    def calculer_tarif(self, panier, options):
+
+        if self.is_country_available(options["country"]):
+            if self.nom == self.options["DPD"]:
+                ret =  self.calculer_tarif_dpd(panier, options)
+            elif self.nom == self.options["SCHENKER_PALETTE"]:
+                ret = self.calculer_tarif_schenker_palette(panier, options)
+            elif self.nom == self.options["SCHENKER_MESSAGERIE"]:
+                ret = self.calculer_tarif_schenker_messagerie(panier, options)
+            else:
+                ret = {'error': "Unknown name"}
+            if ret is not None :
+                return ret 
+            else : 
+                ret = {"error" : "cannot calculate"}
+        else :
+            return {'error' : "Country not available"}
+    
+    def calculer_tarif_dpd(self, panier, options):
         if self.VERBOSE:
             print("[INFO]Calculating tarif for DPD : ...")
+        departement = options['departement']
         # Check if the weight of an article is greater than the maximum weight of the colis
         for element in panier:
             if element['poids'] > self.options["POIDS_MAX_COLIS_DPD"]:
@@ -183,7 +233,7 @@ class Transporteur:
                     print(f"\t[ERROR]Poids de l'article {element['nom']} superieur au poids maximum du colis")
                     print(f"\t[ERROR]Poids de l'article {element['nom']} : {element['poids']} kg")
                     print("\t[WARNING]Calculating tarif for DPD : ERROR")
-                    return None
+                    return {'error' : 'excessive mass'}
         def sort_and_permute(list1, list2):
             # Combine both lists into a list of tuples
             combined = list(zip(list1, list2))
@@ -196,8 +246,8 @@ class Transporteur:
             
             # Convert the result back to lists (since zip returns tuples)
             return list(sorted_list1), list(permuted_list2)
+        
         def optimiser_colis(items, items_label, max_weight, tarif_par_kg):
-
             items,items_label = sort_and_permute(items,items_label)
             n = len(items)
             number_of_partitions = partitions_count(n)
@@ -223,8 +273,9 @@ class Transporteur:
 
             weights = list(tarif_par_kg[:,0])
             prices = list(tarif_par_kg[:,1])
-            c_set_new_tarif(weights,prices)
-            set_new_tarif(weights,prices)
+            # Trick to handle max weight : over max : price = inf
+            c_set_new_tarif(weights,prices, max_weight)
+            set_new_tarif(weights,prices, max_weight)
             result = c_find_best_config(items)
             best_price = result['price']
             best_config = result['config']
@@ -269,12 +320,13 @@ class Transporteur:
                 print(f"\t[INFO]Total cost for DPD: NOT CALCULATED")
                 print(f"\t[INFO]Colis distribution: NOT CALCULATED")
                 print(f"\t[INFO]Colis distribution: NOT CALCULATED")     
-            return None     
+            return {'error': 'colis is None'}     
     
-    def calculer_tarif_schenker_palette(self, panier, departement, nbre_palette = 1, verbose=False):
+    def calculer_tarif_schenker_palette(self, panier, options, nbre_palette = 1, verbose=False):
         poids_total = 0
         if self.VERBOSE:
             print("[INFO]Calculating tarif for Schenker palette : ...")
+        departement = options['departement']
         for article in panier:
             poids_total += article['poids']
         if self.VERBOSE:
@@ -300,14 +352,16 @@ class Transporteur:
             if self.VERBOSE:
                 print(f"\t[INFO]Tarif pour {nbre_palette} palettes : {tarif}€")
                 print(f"[INFO]Calculating tarif for Schenker palette : DONE\n")
-            return tarif
+            return {"prix" : tarif}
         except IndexError:
             print("[ERROR]Nombre de palettes invalide\n")
             return None
             
-    def calculer_tarif_schenker_messagerie(self, panier, departement):
+    def calculer_tarif_schenker_messagerie(self, panier, options):
         if self.VERBOSE:
             print("[INFO]Calculating tarif for Schenker messagerie : ...")
+        departement = options['departement']
+        
         tarif = 0
         poids_total = 0
         for article in panier:
@@ -353,7 +407,7 @@ class Transporteur:
                     if self.VERBOSE:
                         print(f"\t[INFO]Tarif pour {poids_total} kg : {tarif}€")
                         print(f"[INFO]Calculating tarif for Schenker messagerie : DONE\n")
-                    return tarif
+                    return {"prix" : tarif}
         else :
             if poids_total>self.options["MAX_POIDS_MESSAGERIE_SCHENKER"]:
                 if self.VERBOSE:
@@ -372,7 +426,8 @@ class Transporteur:
                         if self.VERBOSE:
                             print(f"\t[INFO]Tarif pour {poids_total} kg : {tarif}€")
                             print(f"[INFO]Calculating tarif for Schenker messagerie : DONE\n")
-                        return tarif
+                        return {"prix" : tarif}
+                    
                     
 # if __name__ == "__main__":
 #     calculateur = CalculateurFraisLivraison()
