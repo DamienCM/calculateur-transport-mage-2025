@@ -1,3 +1,5 @@
+from logger_setup import setup_logging
+setup_logging()  # Call this once at app startup
 print("Loading tk UI : ...")
 from ui import initialiser_interface_tk
 print("Loading tk UI : DONE")

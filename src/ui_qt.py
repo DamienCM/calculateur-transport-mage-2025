@@ -15,6 +15,11 @@ from PyQt5.QtCore import Qt, QTimer, QSize
 from PyQt5.QtGui import QColor, QPainter, QPen
 import math
 
+class CalculationError(Exception):
+    def __init__(self, messsage = "[ERROR] Unknown error happened during calculation"):
+        self.message = messsage
+        super().__init__(self.message)        
+
 @dataclass
 class StyleConstants:
     """Constants for UI styling"""
@@ -638,7 +643,7 @@ class ShippingCalculator(QMainWindow):
         # Calculate button with special styling - full width at bottom
         self.calc_button = QPushButton("Calculer")
         self.calc_button.setObjectName("calc_button")
-        self.calc_button.clicked.connect(self.calculer_frais)
+        self.calc_button.clicked.connect(self.calculer_frais_wrapper)
         self.calc_button.setFixedHeight(StyleConstants.BUTTON_HEIGHT)
         layout.addWidget(self.calc_button)
         
@@ -1046,6 +1051,30 @@ class ShippingCalculator(QMainWindow):
             "departement" : departement,
         }
 
+    def calculer_frais_wrapper(self): 
+        try:
+            self.calculer_frais()
+        except CalculationError as e: 
+            parent = QWidget()
+            qm_result = QMessageBox.warning(
+                        parent,
+                        'Attention', 
+                        f"Le calcul n'a pas pu etre effectué : \n {e}",
+                        QMessageBox.Ok,
+                        )
+            print("[INFO] Error handled during calculation")
+        except Exception as e: 
+            parent = QWidget()
+            qm_result = QMessageBox.critical(
+                        parent,
+                        'Error', 
+                        f"Erreur critique durant le calcul. Le programme va se fermer. \n {e}",
+                        QMessageBox.Ok,
+                        )
+            print(f"[ERROR] Erreur critique durant le calcul. Le programme va se fermer. \n {e}")
+            quit()            
+
+
     def calculer_frais(self):
         try:
             panier = self.create_shopping_cart()
@@ -1054,8 +1083,10 @@ class ShippingCalculator(QMainWindow):
                 self.calculator.set_options(options)
             except Exception as e:
                 print(f"[ERROR] Could not set options : {e}")
+                raise CalculationError(f"[ERROR] Could not set options : {e}")
             if panier == []:
                 print('[WARNING] Panier is empty ! ')
+                raise CalculationError('[WARNING] Panier is empty ! ')
             
             panier = self.calculator.compact_shopping_cart(panier)
             if len(panier)<10:
@@ -1074,7 +1105,9 @@ class ShippingCalculator(QMainWindow):
                 resultats = self.calculator.calculer(panier, options)
                 QApplication.processEvents()  # Process any pending events
             except Exception as e: 
+                self.hide_loading_overlay()
                 print(f"[ERROR] Error during calculation {e}")
+                raise CalculationError(f"[ERROR] Error from calculator {e}")
             finally:
                 # Hide loading overlay after calculation (even if there's an error)
                 self.hide_loading_overlay()
@@ -1101,8 +1134,18 @@ class ShippingCalculator(QMainWindow):
 
             else : 
                 prix_schenker_messagerie = 'Non calculé'
-                self.result_labels['schenker_messagerie'].setText(f"Prix Schenker messagerie : {resultats['schenker_palette']['error']}")
+                self.result_labels['schenker_messagerie'].setText(f"Prix Schenker messagerie : {resultats['schenker_messagerie']['error']}")
                 prix_schenker_messagerie = float('inf')
+            
+            if 'error' in resultats['schenker_messagerie'] and  'error' in resultats['schenker_palette'] and 'error' in resultats['dpd']:
+                raise CalculationError(
+                    f"""
+                    [ERROR] None could be calculated
+                    - DPD : {resultats['dpd']['error']}
+                    - schenker_messagerie : {resultats['schenker_messagerie']['error']}
+                    - schenker_palette : {resultats['schenker_palette']['error']}
+                    """
+                )
 
 
             dpd_arrangement_string = "Arrangement des colis DPD : \n"
@@ -1141,11 +1184,15 @@ class ShippingCalculator(QMainWindow):
                     
         except SyntaxError as e:
             self.result_labels['basket'].setText(f"Erreur: Departement invalide {e}")
-            print(f"[ERROR] Synthax error in departement : {e}")
+            print(f"[WARNING] Synthax error in departement : {e}")
+            raise CalculationError(f"[WARNING] Synthax error in departement : {e}")
 
         except ValueError as e:
             self.result_labels['basket'].setText(f"Erreur: poids invalides {e}")
-            print(f"[ERROR] Value error calculating : {e}")
+            print(f"[WARNING] Value error calculating : {e}")
+            raise CalculationError(f"[WARNING] Value error calculating : {e}")
+
+    
 
 def initialize_qt_interface(calculator) -> None:
     """Initialize and run the Qt application"""
