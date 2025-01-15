@@ -22,13 +22,48 @@ Example:
 import ctypes
 import numpy as np
 from pathlib import Path
+import sys 
+import os
 
 # Compile the C code into a shared library
 import subprocess
-subprocess.run(['gcc', '-fPIC', '-shared', '-o', 'libpartition_optimizer.so', 'partition_optimizer.c'])
 
+def get_base_path():
+    # Check if running as PyInstaller executable
+    if getattr(sys, 'frozen', False):
+        # When running as PyInstaller bundle
+        return os.path.join(sys._MEIPASS, 'bin')
+        # return os.path.join(sys._MEIPASS, '_internal', 'bin')
+    else:
+        # When running as standard Python script
+        return os.path.dirname(os.path.abspath(__file__))
+
+def compile_c_library():
+    base_path = get_base_path()
+    
+    source_file = os.path.join(base_path, 'partition_optimizer.c')
+    output_file = os.path.join(base_path, 'libpartition_optimizer.so')
+    
+    try:
+        result = subprocess.run(
+            ['gcc', '-fPIC', '-shared', '-o', output_file, source_file],
+            capture_output=True,
+            text=True,
+            check=True  # This will raise CalledProcessError if gcc fails
+        )
+        return True, output_file
+    except subprocess.CalledProcessError as e:
+        print(f"GCC compilation failed with error:\n{e.stderr}")
+        return False,None
+    except FileNotFoundError:
+        print("GCC compiler not found. Please ensure GCC is installed and in PATH")
+        return False,None
 # Load the compiled library from the bin directory
-lib = ctypes.CDLL(str(Path.cwd() / 'bin/libpartition_optimizer.so'))
+#Std exec 
+
+result,lib = compile_c_library()
+lib = ctypes.CDLL(str(lib))
+
 
 class OptimizationResult(ctypes.Structure):
     """
