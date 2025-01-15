@@ -19,11 +19,11 @@ class PrintToLogger:
         # Parse the log level and message for the file logger
         message = text.strip()
         if '[ERROR]' in text:
-            logging.error(message[message.index(']'):].strip())
+            logging.error(message[message.index(']')+1:].strip())
         elif '[WARNING]' in text:
-            logging.warning(message[message.index(']'):].strip())
+            logging.warning(message[message.index(']')+1:].strip())
         elif '[INFO]' in text:
-            logging.info(message[message.index(']'):].strip())
+            logging.info(message[message.index(']')+1:].strip())
         else:
             # Default to INFO for prints without level
             logging.info(message)
