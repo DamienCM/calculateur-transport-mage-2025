@@ -74,9 +74,9 @@ def build_windows_app():
     Calculateur Transports - Instructions d'installation
     
     1. Extrayez tout le contenu de ce fichier ZIP dans un dossier de votre choix
-    2. Ouvrez le dossier "Calculateur Transports"
+    2. Ouvrez le dossier "Calculateur Transports" Puis "bin"
     3. Double-cliquez sur "Calculateur Transports.exe" pour démarrer l'application
-    4. Pour le support, contactez : your@email.com
+    4. Pour le support, contactez : d.cartier-millon@mage-application.com
     
     Note : Ne déplacez ni ne supprimez aucun des fichiers ou dossiers - ils sont tous nécessaires au bon fonctionnement de l'application.
     """
