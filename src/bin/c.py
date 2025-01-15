@@ -56,8 +56,12 @@ def compile_c_library():
         print(f"GCC compilation failed with error:\n{e.stderr}")
         return False,None
     except FileNotFoundError:
-        print("GCC compiler not found. Please ensure GCC is installed and in PATH")
-        return False,None
+        print("[WARNING] GCC compiler not found. Please ensure GCC is installed and in PATH")
+        if Path(output_file).is_file():
+            print(f"[WARNING] Continuing with already compiled library {output_file}")
+            return True, output_file
+        else:
+            raise FileNotFoundError("[ERROR] GCC not found and not precompiled library found")
 # Load the compiled library from the bin directory
 #Std exec 
 
