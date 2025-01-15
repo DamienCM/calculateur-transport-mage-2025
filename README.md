@@ -12,14 +12,28 @@ Cette application Python permet de calculer les frais de livraison d'un panier c
   - `schenker_messagerie.csv`: Grille tarifaire pour Schenker Messagerie.
   - `schenker_palette.csv`: Grille tarifaire pour Schenker Palette.
 - `src/`: Contient le code source de l'application.
+  -`bin/` Contient des fichiers plus ou moisn relies a des bianires executables
+    - `c.py`: Interface pour les optimisations en C.
+    - `partition_optimizer.c`: Code C pour l'optimisation des partitions.
+    - `libpartition_optimizer.so`: Code compile pour l'optimisation des partitions.
+  -`config/`
+    -`logger_setup.py`: Fichier config pou log dans le terminal et dans un fichier avec des niveaux de logs
+  -`ui/` Contient les elemetns d'interface graphique
+    - `ui.py`: Interface utilisateur en Tkinter. OUTDATED
+    - `ui_qt.py`: Interface utilisateur en PyQt5.
+    - `article_entry.py`: Widget ligne d'article en PyQt5.
+    - `loading_overlay.py`: Overlay pour le chargement en PyQt5.
+    - `loading_spinner.py`: Animated spinner utiliable pour le chargement en PyQt5.
+    - `styles.py`: Styles par default utilise dans l'application en PyQt5.
+  -`models/` Contient des modeles genereiques pour notre application
+    -`calculation_errors.py` : custom error type
+    -`culculation_thread.py` : to run calculation on an other thread than ui
+    -`transporteurs.py` : Transporteurs logic and calculations
+  -`utils/` Contient es utilitaire pour notre application
+    -`utils.py` : Contient des fonctions utiles generiques
   - `__main__.py`: Script principal pour exécuter l'application.
+  - `__init__.py`: Pour considerer l'ensemble comme package.
   - `calculateur.py`: Contient la logique de calcul des frais de livraison.
-  - `c.py`: Interface pour les optimisations en C.
-  - `ui.py`: Interface utilisateur en Tkinter.
-  - `ui_qt.py`: Interface utilisateur en PyQt5.
-  - `utils.py`: Contient les utilitaires pour calculer les frais de livraison.
-  - `partition_optimizer.c`: Code C pour l'optimisation des partitions.
-  - `logger_setup.py`: Configuration du logger.
 - `build/`: Contient les fichiers de build.
   - `Calculateur Transports/`: Dossier de build.
 - `icons/`: Contient les icônes de l'application.
