@@ -67,7 +67,9 @@ def build_windows_app():
         shutil.copytree(data_dir, install_dir / APP_NAME / "data", dirs_exist_ok=True)
     if icons_dir.exists():
         shutil.copytree(icons_dir, install_dir / APP_NAME / "icons", dirs_exist_ok=True)
-    shutil.copy2(src_dir/"partition_optimizer.c", install_dir / APP_NAME / "bin")
+    # os.mkdir(install_dir / APP_NAME / "bin/bin/")
+    # shutil.copy2(src_dir/"bin/partition_optimizer.c", install_dir / APP_NAME / "bin/bin/partition_optimizer.c")
+    # shutil.copy2(src_dir/"bin/libpartition_optimizer.so", install_dir / APP_NAME / "bin/bin/libpartition_optimizer.so")
     
     # Create README
     readme_content = """
@@ -76,9 +78,12 @@ def build_windows_app():
     1. Extrayez tout le contenu de ce fichier ZIP dans un dossier de votre choix
     2. Ouvrez le dossier "Calculateur Transports" Puis "bin"
     3. Double-cliquez sur "Calculateur Transports.exe" pour démarrer l'application
-    4. Pour le support, contactez : d.cartier-millon@mage-application.com
+    4. Un raccourci peut etre creee
+    5. Pour le support, contactez : d.cartier-millon@mage-application.com
     
+
     Note : Ne déplacez ni ne supprimez aucun des fichiers ou dossiers - ils sont tous nécessaires au bon fonctionnement de l'application.
+    Note2 : Sous data il y a des csv qui gerent les tarifs et autres donnees d'entree. On peut modifier mais avec precaution
     """
     
     with open(install_dir / "README.txt", "w", encoding='utf-8') as f:
