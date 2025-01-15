@@ -7,7 +7,7 @@ import subprocess
 subprocess.run(['gcc', '-fPIC', '-shared', '-o', 'libpartition_optimizer.so', 'partition_optimizer.c'])
 
 # Load the compiled library
-lib = ctypes.CDLL(str(Path.cwd() / 'libpartition_optimizer.so'))
+lib = ctypes.CDLL(str(Path.cwd() / 'bin/libpartition_optimizer.so'))
 
 # Define the Result structure in Python
 class OptimizationResult(ctypes.Structure):
