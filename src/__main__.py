@@ -1,4 +1,6 @@
-try: 
+try:
+    import os 
+    print(f"Current dir = {os.getcwd()}")
     from config.logger_setup import setup_logging
     setup_logging()  # Call this once at app startup
     print("Loading tk UI : ...")
