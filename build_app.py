@@ -3,6 +3,7 @@ import PyInstaller.__main__
 import shutil
 import os
 from pathlib import Path
+import subprocess
 
 def build_windows_app():
     # Clean previous builds
@@ -51,6 +52,23 @@ def build_windows_app():
     # Run PyInstaller
     PyInstaller.__main__.run(args)
     
+    # After PyInstaller completes, sign the executable
+    dist_path = Path('dist') / APP_NAME / f'{APP_NAME}.exe'
+    if dist_path.exists():
+        sign_command = [
+            'signtool', 'sign',
+            '/fd', 'SHA256',
+            '/f', 'certificate.pfx',
+            '/p', 'MAGE2025',
+            str(dist_path)
+        ]
+        try:
+            subprocess.run(sign_command, check=True)
+            print(f"Successfully signed {dist_path}")
+        except subprocess.CalledProcessError as e:
+            print(f"Failed to sign executable: {e}")
+
+
     # Create installation folder structure
     install_dir = Path("installation_package")
     install_dir.mkdir(exist_ok=True)
