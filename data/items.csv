@@ -1,5 +1,8 @@
+// LISTE DES ARTICLES DISPONIBLES POUR LE CALCULATEUR MAGE
+DATE : 2025
+
+
 Ref, Nom, Designation, Prix, Masse (kg)
-#2header lines Date mise a jour 2024 ; DO NOT Change colomn headers labels
 ME131,Lea30s,Attacheur electrique autonomme, 1280, 3.1
 ME1310102,Bobine Photo 40, Bobine de lien photodegradable pour lea30s 0.40mm, 10, 0.5
 ME1310101,Bobine PVC 40, Bobine de lien PVC pour lea30s 0.40mm, 10, 0.5

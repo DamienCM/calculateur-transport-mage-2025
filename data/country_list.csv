@@ -1,6 +1,9 @@
-Country
-2025
-France
-Suisse
-Espagne
-Italie
+// LISTE DES PAYS PROPOSE DANS L'INTERFACE
+// Mettre des virgules apres le nom des pays
+DATE : 2025
+
+Countries,
+France,
+Suisse,
+Espagne,
+Italie,

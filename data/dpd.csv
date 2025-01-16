@@ -1,5 +1,13 @@
-DATE : 2024
-poids,tarif
+// WARNING DO NOT USE "," SYMBOL ANYWHERE ELSE THAN IT ACTUAL DATA
+DATE : 2025
+// surcharge SURCHARGE_TRANSPORTEUR = frais en % de la taxe gasoil + differents frais
+SURCHARGE_TRANSPORTEUR : 15.5
+
+// SURCHARGE_MAGE  = frais en % rajoutes apres (frais emballage etc)
+SURCHARGE_MAGE : 0.0
+
+
+poids,tarif dpd classique
 1,6.95
 2,7.28
 3,7.60

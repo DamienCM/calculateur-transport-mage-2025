@@ -17,6 +17,8 @@ from ui.loading_overlay import LoadingOverlay
 from models.calculation_errors import CalculationError
 from models.calculator_thread import CalculatorThread
 
+from utils.utils import read_csv_file_with_headers
+
 
 class ShippingCalculator(QMainWindow):
     """Main window class for the shipping calculator application"""
@@ -29,7 +31,7 @@ class ShippingCalculator(QMainWindow):
         self.entry_id = 0
         self.entries: List[ArticleEntry] = []
         self.input_format = 'raw'
-        self.articles_list = self._load_articles_list()
+        self.articles_headers, self.articles_structure, self.articles_list, = self._load_articles_list()
         self.country_list = self._load_country_list()
         self.entries_layout = None
         
@@ -38,44 +40,52 @@ class ShippingCalculator(QMainWindow):
         
     def _load_articles_list(self) -> List[Dict[str, Any]]:
         """Load articles list from CSV file"""
-        articles_list = []
-        csv_structure = ["Ref", "Nom", "Designation", "Prix", "Masse (kg)"]
+        
 
+        header, columns_labels, csv = read_csv_file_with_headers(self.PATH_ARTICLES_LIST)
+        id_list = list(range(len(csv[columns_labels[0]])))
+        columns_labels.insert(0,"id")
+        csv['id'] = id_list
         try:
-            with open(self.PATH_ARTICLES_LIST) as f:
-                # Skip first two rows
-                lines = f.readlines()[2:]
-                for index, line in enumerate(lines):
-                    line_splitted = line.split(',')
-                    article = {"id": index}
-                    for el, label in zip(line_splitted, csv_structure):
-                        article[label] = el.strip()
-                    articles_list.append(article)
+            pass
+            # with open(self.PATH_ARTICLES_LIST) as f:
+            #     # Skip first two rows
+            #     lines = f.readlines()[2:]
+            #     for index, line in enumerate(lines):
+            #         line_splitted = line.split(',')
+            #         article = {"id": index}
+            #         for el, label in zip(line_splitted, csv_structure):
+            #             article[label] = el.strip()
+            #         articles_list.append(article)
                 
-            print(f"Articles list loaded successfully: {len(articles_list)} items")
-            return articles_list
+            # print(f"Articles list loaded successfully: {len(articles_list)} items")
+            # return articles_list
             
         except FileNotFoundError as e:
             print(f"Error: Could not find articles list file: {e}")
             return []
         except Exception as e:
             print(f"Error loading articles list: {e}")
+            print(e.__traceback__())
             return []
+        return header, columns_labels, csv
     
     def _load_country_list(self) -> List[str]:
         """Load articles list from CSV file"""
         country_list = []
 
         try:
-            with open(self.PATH_COUNTRY_LIST) as f:
-                # Skip first two rows
-                lines = f.readlines()[2:]
-                for line in lines:
-                    country = line.strip()
-                    country_list.append(country)
+            header, columns_labels, csv = read_csv_file_with_headers(self.PATH_COUNTRY_LIST)
+            # with open(self.PATH_COUNTRY_LIST) as f:
+            #     # Skip first two rows
+            #     lines = f.readlines()[2:]
+            #     for line in lines:
+            #         country = line.strip()
+            #         country_list.append(country)
                 
-            print(f"Country list loaded successfully: {len(country_list)} countries")
-            return country_list
+            # print(f"Country list loaded successfully: {len(country_list)} countries")
+
+            return csv[columns_labels[0]]
             
         except FileNotFoundError as e:
             print(f"Error: Could not find country list file: {e}")
@@ -559,28 +569,46 @@ class ShippingCalculator(QMainWindow):
 
         if self.input_format == 'raw':
             # Raw input mode
-            label = QLabel("Poids de l'article (kg):")
+            qt_label = QLabel("Poids de l'article (kg):")
             entry = QLineEdit()
             entry.setPlaceholderText("Entrez le poids")
             
-            layout.addWidget(label)
+            layout.addWidget(qt_label)
             layout.addWidget(entry, 1)  # Give entry more stretch
             
             result = {'entry': entry}
             
         else:  # ref or designation modes
             # Reference or designation mode
-            label = QLabel("Article:")
+            qt_label = QLabel("Article:")
             combobox = QComboBox()
-            field = 'Ref' if self.input_format == 'ref' else 'Designation'
-            combobox.addItems([f"{article['id']}. {article[field]}" for article in self.articles_list])
-            
+            # field = 'Ref' if self.input_format == 'ref' else 'Designation'
+            # combobox.addItems([f"{article['id']}. {article[field]}" for article in self.articles_list])
+            # Try to find input_format in headers 
+            index = None 
+            for col_label in self.articles_structure:
+                if self.input_format in col_label:
+                    index = self.articles_structure.index(col_label)
+
+            if index is not None:
+                # input format found 
+                article_list = [f"{self.articles_list[self.articles_structure[0]][i]}. {self.articles_list[self.articles_structure[index]][i]}" for i in range(len(self.articles_list[self.articles_structure[0]]))]
+                print(f"[INFO] Article list = {article_list}")
+                combobox.addItems(article_list)
+            else: # Defaulting to index col 0 + 1 (inserted id col) for ref 
+                if self.input_format == 'ref':
+                    article_list = [f"{self.articles_list[self.articles_structure[0]][i]}. {self.articles_list[self.articles_structure[0]][i]}" for i in range(len(self.articles_list[self.articles_structure[0]]))]
+                    combobox.addItems(article_list)
+                elif self.input_format == 'designation':
+                    article_list = [f"{self.articles_list[self.articles_structure[0]][i]}. {self.articles_list[self.articles_structure[1]][i]}" for i in range(len(self.articles_list[self.articles_structure[0]]))]
+                    combobox.addItems(article_list)
+
             label_qty = QLabel("Quantité:")
             qty_box = QSpinBox()
             qty_box.setMinimum(1)
             qty_box.setMaximum(999)
             
-            layout.addWidget(label)
+            layout.addWidget(qt_label)
             layout.addWidget(combobox, 1)  # Give combobox more stretch
             layout.addWidget(label_qty)
             layout.addWidget(qty_box)
@@ -621,9 +649,16 @@ class ShippingCalculator(QMainWindow):
                     article_id = int(combobox_text[0])
                     article_name_or_ref = "".join(combobox_text[1:])
                     matching_weight = None
-                    for article in self.articles_list:
-                        if article["id"]==article_id:
-                            matching_weight=article["Masse (kg)"]
+                    # for article in self.articles_list:
+                    #     if article["id"]==article_id:
+                    #         matching_weight=article["Masse (kg)"]
+                    article_index = self.articles_list[self.articles_structure[0]].index(article_id)
+                    for label in self.articles_structure:
+                        if "masse" in label:
+                            mass_col = self.articles_structure.index(label)
+                        else :
+                            mass_col = 5
+                    matching_weight = self.articles_list[self.articles_structure[mass_col]][article_index]
                     article_qty = int(entry_data['qty_box'].cleanText())
                     if matching_weight is not None:
                         for _ in range(article_qty):

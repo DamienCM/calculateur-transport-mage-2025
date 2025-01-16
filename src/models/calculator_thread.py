@@ -39,4 +39,5 @@ class CalculatorThread(QThread):
                 print("Finished signal emitted")
         except Exception as e:
             print("Error in calculation:", str(e))
+            print(e.__traceback__())
             self.error.emit(str(e))

@@ -1,5 +1,14 @@
-DATE : 2025-01-01
-departement,tarif1,tarif2,tarif3,tarif4,tarif5
+// WARNING DO NOT USE "," SYMBOL ANYWHERE ELSE THAN IT ACTUAL DATA
+DATE : 2025
+// surcharge SURCHARGE_TRANSPORTEUR = frais en % de la taxe gasoil + differents frais
+SURCHARGE_TRANSPORTEUR : 10.5
+
+// SURCHARGE_MAGE  = frais en % rajoutes apres (frais emballage etc)
+SURCHARGE_MAGE : 0.0
+
+
+
+departement,tarif_1_palette,tarif_2_palette,tarif_3_palette,tarif_4_palette,tarif_5_palette
 01	AIN	,110.74	,163.00	,207.30	,254.25	,308.73
 02	AISNE	,162.10	,238.61	,303.45	,372.18	,451.93
 03	ALLIER	,117.58	,173.08	,220.12	,269.98	,327.83

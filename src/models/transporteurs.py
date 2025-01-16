@@ -8,7 +8,7 @@ print("Loading C : ...")
 from bin.c import find_best_config as c_find_best_config
 from bin.c import set_new_tarif as c_set_new_tarif
 print("Loading C : DONE")
-
+from utils.utils import read_csv_file_with_headers
 
 
 class Transporteur:
@@ -20,7 +20,7 @@ class Transporteur:
         self.nom = nom
         self.fichier_tarifs = fichier_tarifs
         self.options = dict(options)
-        self.tarifs = self.charger_tarifs()
+        self.header, self.columns_labels, self.csv = self.charger_tarifs()
         self.available_countries = None
         self.charger_liste_pays_disponible()
         if self.VERBOSE:
@@ -38,56 +38,62 @@ class Transporteur:
             print(f"\t[INFO] Loading tarifs {self.nom} : ...")
         if self.fichier_tarifs not in [self.options["DPD_PATH"], self.options["SCHENKER_PALETTE_PATH"], self.options["SCHENKER_MESSAGERIE_PATH"]]:
             raise ValueError("Fichier tarifs invalide")
-        tarifs = {}
+        header, columns_labels, csv = {},[],{}
         try :
             if self.nom == self.options["DPD"]:
-                tarifs = []
-                with open(self.fichier_tarifs) as f:
-                    # Ignorer les deux premières lignes
-                    lignes = f.readlines()[2:]
-                    for ligne in lignes:
-                        poids, tarif = ligne.strip().split(',')
-                        # tarifs[float(poids)] = float(tarif)
-                        tarifs.append(np.array([float(poids),float(tarif)]))
-                tarifs = np.array(tarifs)
-            elif self.nom == self.options["SCHENKER_PALETTE"]:
-                with open(self.fichier_tarifs) as f:
-                    lignes = f.readlines()[2:]
-                    last_departement = None
-                    for ligne in lignes:
-                        departement,tarif1,tarif2,tarif3,tarif4,tarif5 = ligne.strip().split(',')
-                        departement = departement[0:2]
-                        if departement == last_departement:
-                            departement = departement + "_"
-                        tarifs[departement] = [float(tarif1), float(tarif2), float(tarif3), float(tarif4), float(tarif5)]
-                        last_departement = departement
-            elif self.nom == self.options["SCHENKER_MESSAGERIE"]:
-                with open(self.fichier_tarifs) as f:
-                    lignes = f.readlines()
-                    zone1 , zone2, zone3, zone4 = lignes[1].strip().split(':')[1].split(','), lignes[2].strip().split(':')[1].split(','), lignes[3].strip().split(':')[1].split(','), lignes[4].strip().split(':')[1].split(',')
-                    tarifs["zone1"], tarifs["zone2"], tarifs["zone3"], tarifs["zone4"] = zone1, zone2, zone3, zone4
-                    kgs =[]
-                    tarifs_zone1, tarifs_zone2, tarifs_zone3, tarifs_zone4 = [], [], [], []
+                header, columns_labels, csv = read_csv_file_with_headers(self.fichier_tarifs,col_types=[int,float])
+            if self.nom == self.options["SCHENKER_PALETTE"]:
 
-                    for ligne in lignes[6:]:
-                        kg, tarif_zone1, tarif_zone2, tarif_zone3, tarif_zone4 = ligne.strip().split(',')
-                        kgs.append(float(kg))
-                        tarifs_zone1.append(float(tarif_zone1))
-                        tarifs_zone2.append(float(tarif_zone2))
-                        tarifs_zone3.append(float(tarif_zone3))
-                        tarifs_zone4.append(float(tarif_zone4))
-                    tarifs["kgs"] = kgs
-                    tarifs["tarifs_zone1"] = tarifs_zone1
-                    tarifs["tarifs_zone2"] = tarifs_zone2
-                    tarifs["tarifs_zone3"] = tarifs_zone3
-                    tarifs["tarifs_zone4"] = tarifs_zone4
+                # with open(self.fichier_tarifs) as f:
+                #     lignes = f.readlines()[2:]
+                #     last_departement = None
+                #     for ligne in lignes:
+                #         departement,tarif1,tarif2,tarif3,tarif4,tarif5 = ligne.strip().split(',')
+                #         departement = departement[0:2]
+                #         if departement == last_departement:
+                #             departement = departement + "_"
+                #         tarifs[departement] = [float(tarif1), float(tarif2), float(tarif3), float(tarif4), float(tarif5)]
+                #         last_departement = departement
+                header, columns_labels, csv = read_csv_file_with_headers(self.fichier_tarifs,col_types=[str,float,float,float,float,float])
+                last_departement = '00'
+                for line_index in range(len(csv[columns_labels[0]])-1,-1,-1):
+                    departement_complet = csv[columns_labels[0]][line_index]
+                    departement_chiffres = departement_complet[0:2]
+                    csv[columns_labels[0]][line_index] = departement_chiffres
+                    # Two consecutives departemetn = localite speciale, on supprime 
+                    if last_departement == departement_chiffres:
+                        for key,value in csv.items():
+                            value.pop(line_index+1)
+                    last_departement = departement_chiffres
+            elif self.nom == self.options["SCHENKER_MESSAGERIE"]:
+                # with open(self.fichier_tarifs) as f:
+                #     lignes = f.readlines()
+                #     zone1 , zone2, zone3, zone4 = lignes[1].strip().split(':')[1].split(','), lignes[2].strip().split(':')[1].split(','), lignes[3].strip().split(':')[1].split(','), lignes[4].strip().split(':')[1].split(',')
+                #     tarifs["zone1"], tarifs["zone2"], tarifs["zone3"], tarifs["zone4"] = zone1, zone2, zone3, zone4
+                #     kgs =[]
+                #     tarifs_zone1, tarifs_zone2, tarifs_zone3, tarifs_zone4 = [], [], [], []
+
+                #     for ligne in lignes[6:]:
+                #         kg, tarif_zone1, tarif_zone2, tarif_zone3, tarif_zone4 = ligne.strip().split(',')
+                #         kgs.append(float(kg))
+                #         tarifs_zone1.append(float(tarif_zone1))
+                #         tarifs_zone2.append(float(tarif_zone2))
+                #         tarifs_zone3.append(float(tarif_zone3))
+                #         tarifs_zone4.append(float(tarif_zone4))
+                #     tarifs["kgs"] = kgs
+                #     tarifs["tarifs_zone1"] = tarifs_zone1
+                #     tarifs["tarifs_zone2"] = tarifs_zone2
+                #     tarifs["tarifs_zone3"] = tarifs_zone3
+                #     tarifs["tarifs_zone4"] = tarifs_zone4
+                header, columns_labels, csv = read_csv_file_with_headers(self.fichier_tarifs,col_types=[int,float,float,float,float],list_in_header=True)
+
         except FileNotFoundError as e :
             print(f"Erreur lors de l'initiallisation des tarifs...\n{e}")
             print("Appuyer sur entree pour terminer le programme...")
             _ = input()
         if self.VERBOSE:
             print(f"\t[INFO] Loading tarifs {self.nom} : DONE\n")
-        return tarifs
+        return header, columns_labels, csv
 
     def charger_liste_pays_disponible(self):
         try :
@@ -157,6 +163,7 @@ class Transporteur:
                     print(f"\t[ERROR] Poids de l'article {element['nom']} : {element['poids']} kg")
                     print("\t[WARNING] Calculating tarif for DPD : ERROR")
                     return {'error' : 'excessive mass'}
+        
         def sort_and_permute(list1, list2):
             # Combine both lists into a list of tuples
             combined = list(zip(list1, list2))
@@ -170,7 +177,7 @@ class Transporteur:
             # Convert the result back to lists (since zip returns tuples)
             return list(sorted_list1), list(permuted_list2)
         
-        def optimiser_colis(items, items_label, max_weight, tarif_par_kg):
+        def optimiser_colis(items, items_label, max_weight, columns_labels,csv):
             items,items_label = sort_and_permute(items,items_label)
             n = len(items)
             number_of_partitions = partitions_count(n)
@@ -191,8 +198,12 @@ class Transporteur:
                 except Exception as e: 
                     print(e)
             # Generates the set of all possible partitions
-            weights = list(tarif_par_kg[:,0])
-            prices = list(tarif_par_kg[:,1])
+            # weights = list(tarif_par_kg[:,0])
+            print(f"{columns_labels=}")
+            weights = csv[columns_labels[0]]
+            prices = csv[columns_labels[1]]
+            
+            # prices = list(tarif_par_kg[:,1])
             # Trick to handle max weight : over max : price = inf
             c_set_new_tarif(weights,prices, max_weight)
             set_new_tarif(weights,prices, max_weight)
@@ -220,7 +231,7 @@ class Transporteur:
         poids_articles = [article['poids'] for article in panier]
         nom_articles = [article["nom"] for article in panier]
 
-        total_cost, colis = optimiser_colis(poids_articles, nom_articles, self.options["POIDS_MAX_COLIS_DPD"], self.tarifs)
+        total_cost, colis = optimiser_colis(poids_articles, nom_articles, self.options["POIDS_MAX_COLIS_DPD"], self.columns_labels, self.csv)
         if colis is not None:
             colis_masses, colis_labels = colis
             prix_colis = [ tarif_par_masse(sum(colis)) for colis in colis_masses ]
@@ -261,9 +272,18 @@ class Transporteur:
         if len(departement)==2 and departement[-1]=="_":
             departement = "0" + departement
         if self.VERBOSE:
-            print("\t[INFO] Departement", departement)
+            print("\t[INFO] Departement ", departement)
         # indentifying tarifs corresponding to departement
-        tarifs_dpt = self.tarifs[departement]
+        dpt_list = self.csv[self.columns_labels[0]]
+        # print(f"\t[INFO]{dpt_list}")
+        try:
+            index_dpt = dpt_list.index(departement)
+        except:
+            print(f"[ERROR] Departement {departement} not on list {dpt_list}")
+            raise ValueError(f"[ERROR] Departement {departement} not on list {dpt_list}")
+        print(f"\t[INFO]{index_dpt=}")
+        tarifs_dpt = [ self.csv[col_label][index_dpt] for col_label in self.columns_labels[1:]]
+        print(f"\t[INFO]{tarifs_dpt=}")
         if self.VERBOSE:
             print("\t[INFO] Tarifs du departement ", tarifs_dpt)
         # identifying tarif for the matching nbre_palette
@@ -301,29 +321,41 @@ class Transporteur:
                 print("\t[INFO] Departement zone speciale (corse monaco ou station) TO BE DONE :", departement)
                 print("\t[INFO] Calculating tarif for Schenker messagerie : NOT VALID YET")
             return {"error":"localite speciale non gerees pour le moment"}
-        if departement in self.tarifs["zone1"]:
-            zone = 1
-        elif departement in self.tarifs["zone2"]:
-            zone = 2
-        elif departement in self.tarifs["zone3"]:
-            zone = 3
-        elif departement in self.tarifs["zone4"]:
-            zone = 4
-        else:
+        # if departement in self.csv["zone1"]:
+        #     zone = 1
+        # elif departement in self.csv["zone2"]:
+        #     zone = 2
+        # elif departement in self.csv["zone3"]:
+        #     zone = 3
+        # elif departement in self.csv["zone4"]:
+        #     zone = 4
+        zone = None
+        for key,value in self.header.items():
+            if key.startswith('zone') and type(value) == list:
+                if departement in value:
+                    zone = key
+                    break
+        
+
+        if zone is None:
             if self.VERBOSE:
                 print("\t[INFO] Departement invalide :", departement)
                 print("[INFO] Calculating tarif for Schenker messagerie : ERROR")
             raise ValueError("Departement invalide")
+        
+        tarif_zone = self.csv[zone]
+        kgs = self.csv[self.columns_labels[0]]
+
         if self.VERBOSE:
-            print("\t[INFO] Zone", zone)
-            print(f"\t[INFO] Tarif zone {zone} : ", self.tarifs[f"tarifs_zone{zone}"])
+            print("\t[INFO] Zone ", zone)
+            print(f"\t[INFO] Tarif zone {zone} : ", tarif_zone)
         if poids_total < self.options["SEUIL_PRIX_AU_KG_MESSAGERIE_SCHENKER"]:
             # calculating the tarif
             if self.VERBOSE:
                 print(f'\t[INFO] Tarification par tranches (>{self.options["SEUIL_PRIX_AU_KG_MESSAGERIE_SCHENKER"]} kg)')
-            for i in range(len(self.tarifs["kgs"])):
-                if poids_total <= self.tarifs["kgs"][i]:
-                    tarif = self.tarifs[f"tarifs_zone{zone}"][i]
+            for i in range(len(kgs)):
+                if poids_total <= kgs[i]:
+                    tarif = tarif_zone[i]
                     if self.VERBOSE:
                         print(f"\t[INFO] Tarif pour {poids_total} kg : {tarif}€")
                         print(f"[INFO] Calculating tarif for Schenker messagerie : DONE\n")
@@ -337,9 +369,9 @@ class Transporteur:
             else:
                 if self.VERBOSE:
                     print(f"\t[INFO] Tarification par tranche de 100 kg")
-                for i in range(len(self.tarifs["kgs"])):
-                    if poids_total <= self.tarifs["kgs"][i]:
-                        tarif_aux_100kg = self.tarifs[f"tarifs_zone{zone}"][i]
+                for i in range(len(kgs)):
+                    if poids_total <= kgs[i]:
+                        tarif_aux_100kg = tarif_zone[i]
                         if self.VERBOSE:
                             print(f"\t[INFO] Tarif aux 100 kg : {tarif_aux_100kg}€ pour {poids_total//100} tranches de 100 kg")
                         tarif = tarif_aux_100kg * (poids_total//100)
