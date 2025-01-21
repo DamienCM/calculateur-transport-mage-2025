@@ -100,22 +100,23 @@ class Transporteur:
             if self.VERBOSE:
                 print('\t[INFO] Loading country list : ...')
 
-            with open(self.options["COUNTRY_AVAILABLE_PATH"]) as f: 
-                lines = f.readlines()
-                columns = [ c.strip().lower() for c in lines[0].strip().split(",")]
-                if self.nom not in columns:
-                    raise ValueError(f"{self.nom} not a column in {self.options['COUNTRY_AVAILABLE_PATH']} ")
-                csv_data = {  c.strip().lower():[] for c in columns }
-                #skip header
-                lines = lines[2:]
-                for line in lines :
-                    line_cells = line.strip().split(',')
-                    for row_index, cell_content in enumerate(line_cells):
-                        csv_data[columns[row_index]].append(cell_content.strip().lower())
-            self.available_countries = csv_data
+            # with open(self.options["COUNTRY_AVAILABLE_PATH"]) as f: 
+            #     lines = f.readlines()
+            #     columns = [ c.strip().lower() for c in lines[0].strip().split(",")]
+            #     if self.nom not in columns:
+            #         raise ValueError(f"{self.nom} not a column in {self.options['COUNTRY_AVAILABLE_PATH']} ")
+            #     csv_data = {  c.strip().lower():[] for c in columns }
+            #     #skip header
+            #     lines = lines[2:]
+            #     for line in lines :
+            #         line_cells = line.strip().split(',')
+            #         for row_index, cell_content in enumerate(line_cells):
+            #             csv_data[columns[row_index]].append(cell_content.strip().lower())
+            header, col_label, csv = read_csv_file_with_headers(self.options["COUNTRY_AVAILABLE_PATH"])
+            self.available_countries = csv[col_label[col_label.index(self.nom)]]
             if self.VERBOSE:
                 print('\t[INFO] Loading country list : DONE')   
-                print(f'\t[INFO] Country List : {csv_data}')   
+                print(f'\t[INFO] Country List : {self.available_countries}')   
         except Exception as e:
             print(f"[ERROR] Unhandled error during loading of country list : {e}")
             return -1     
@@ -123,8 +124,7 @@ class Transporteur:
     
     def is_country_available(self, country):
         try :
-            available_countries_for_this_transporteur = self.available_countries[self.nom.strip().lower()]
-            if country.lower().strip() in available_countries_for_this_transporteur:
+            if country.lower().strip() in self.available_countries:
                 return True
             else :
                 return False
