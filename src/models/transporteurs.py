@@ -296,7 +296,7 @@ class Transporteur:
                 print(f"\t[INFO] Colis distribution: {colis_masses}")
                 print(f"\t[INFO] Colis distribution: {colis_labels}")
             
-            return {"prix": total_cost*self.options["POURCENTAGE_MAGE"]/100,
+            return {"prix": total_cost*(1+self.options["POURCENTAGE_MAGE"]/100),
                     "arrangement (masses)":colis_masses,
                     "arrangement (labels)": colis_labels,
                     "prix_colis":prix_colis,
@@ -349,7 +349,7 @@ class Transporteur:
             if self.VERBOSE:
                 print(f"\t[INFO] Tarif pour {nbre_palette} palettes : {tarif}€")
                 print(f"[INFO] Calculating tarif for Schenker palette : DONE\n")
-            return {"prix" : tarif*self.options["POURCENTAGE_MAGE"]/100}
+            return {"prix" : tarif*(1+self.options["POURCENTAGE_MAGE"]/100)}
         except IndexError:
             print("[ERROR] Nombre de palettes invalide\n")
             return {'error':"[ERROR] Nombre de palettes invalide"}
@@ -435,4 +435,4 @@ class Transporteur:
                         if self.VERBOSE:
                             print(f"\t[INFO] Tarif pour {poids_total} kg : {tarif}€")
                             print(f"[INFO] Calculating tarif for Schenker messagerie : DONE\n")
-                        return {"prix" : tarif*self.options["POURCENTAGE_MAGE"]/100}
+                        return {"prix" : tarif*(1+self.options["POURCENTAGE_MAGE"]/100)}
