@@ -43,7 +43,6 @@ def tarif_par_masse(masse):
         return price
 
 
-# @lru_cache(maxsize=None)
 def find_best_config(elements, i=0, price=0):
     """
     List all partitions and finds the best partition with corresponding price
@@ -91,7 +90,10 @@ def find_best_config(elements, i=0, price=0):
         all_partitions.append(new_partition)
     if i == 0:
         print(f"counter={counter}")
-        return best_price, best_config
+        return {
+            "price" :best_price,
+            "config" : best_config
+            }
     return all_partitions
 
 

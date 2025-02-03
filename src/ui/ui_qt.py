@@ -261,15 +261,15 @@ class ShippingCalculator(QMainWindow):
         self.country_combobox = QComboBox()
         self.country_combobox.addItems(self.country_list)
         self.dpd_max_entry = QLineEdit(StyleConstants.DEFAULT_DPD_MAX)
-        self.threshold_entry = QLineEdit(StyleConstants.DEFAULT_THRESHOLD)
+        self.pourcentage_mage = QLineEdit(StyleConstants.POURCENTAGE_MAGE)
         
-        for widget in [self.departement_entry, self.dpd_max_entry, self.threshold_entry]:
+        for widget in [self.departement_entry, self.dpd_max_entry, self.pourcentage_mage]:
             widget.setStyleSheet(widget.styleSheet() + f"margin-bottom: {StyleConstants.WIDGET_SPACING}px;")
         
         form.addRow("Département:", self.departement_entry)
         form.addRow("Pays :", self.country_combobox)
         form.addRow("Poids max dpd (kg):", self.dpd_max_entry)
-        form.addRow("Seuil petit colis (kg):", self.threshold_entry)
+        form.addRow("Pourcentage MAGE:", self.pourcentage_mage)
         
         layout.addLayout(form)
         
@@ -684,7 +684,7 @@ class ShippingCalculator(QMainWindow):
 
     def get_input_options(self):
         max_dpd = self.dpd_max_entry.text()
-        seuil_mini = self.threshold_entry.text()
+        pourcentage_mage = self.pourcentage_mage.text()
         country = self.country_combobox.currentText()
         departement = self.departement_entry.text()
 
@@ -694,15 +694,15 @@ class ShippingCalculator(QMainWindow):
         try :
             max_dpd = float(max_dpd)
             int(departement)
-            seuil_mini = float(seuil_mini)
+            pourcentage_mage = float(pourcentage_mage)
         except Exception as e :
             print("[ERROR] Unable to convert to float : {e}")
             return None
         print('[INFO] Input options parsed successfully')
         return {
             'POIDS_MAX_COLIS_DPD':max_dpd,
-            'SEUIL_ARTICLE_LEGER':seuil_mini,
-            "SEUIL_COMPACTAGE":seuil_mini,
+            'SEUIL_ARTICLE_LEGER':pourcentage_mage,
+            "POURCENTAGE_MAGE":pourcentage_mage,
             "country" : country,
             "departement" : departement,
         }

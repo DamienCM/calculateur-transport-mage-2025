@@ -41,7 +41,7 @@ class StyleConstants:
     
     # Defaults
     DEFAULT_DPD_MAX = "29"
-    DEFAULT_THRESHOLD = "2"
+    POURCENTAGE_MAGE = "0"
     
     # Paths
     WINDOW_ICON = '../icons/Logo-MAGE-Application.ico'

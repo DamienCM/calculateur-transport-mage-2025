@@ -2,7 +2,7 @@ print("Loading numpy : ...")
 import numpy as np
 print("Loading numpy : DONE")
 print("Loading utils : ...")
-from utils.utils import partitions_count, tarif_par_masse,set_new_tarif
+from utils.utils import partitions_count, tarif_par_masse,set_new_tarif, find_best_config
 print("Loading utils : DONE")
 print("Loading C : ...")
 from bin.c import find_best_config as c_find_best_config
@@ -29,69 +29,39 @@ class Transporteur:
             print(f"[INFO] Initializing {nom} : DONE")
             print(f"----------------------------------")
 
-        def optimiser_colis(panier, max_weight, columns_labels, csv):
-            initial_panier = panier[:]
-            items = [float(article['poids']) for article in panier]
-            items_label = [article["nom"] for article in panier]
-            items,items_label = sort_and_permute(items,items_label)
-            n = len(items)
-            number_of_partitions = partitions_count(n)
-            capture_message(f"[INFO] Compacting shopping cart while calculation is too expensive: Cart = {panier}")
-    
-            compacting_count = 0
-            while number_of_partitions > self.options["SEUIL_WARNING_ITERATIONS"]:
-                compacting_count+=1
-                self.options['SEUIL_COMPACTAGE']+=1
-                self.options['SEUIL_ARTICLE_LEGER']+=1
-                panier_compact = self.compact_shopping_cart(panier)
-                items = [float(article['poids']) for article in panier_compact]
-                items_label = [article["nom"] for article in panier_compact]
-                items,items_label = sort_and_permute(items,items_label)
-                n = len(items)
-                capture_message(f"[INFO] cart len {n}")
-                number_of_partitions = partitions_count(n)
-                if self.options['SEUIL_COMPACTAGE']>=self.options["POIDS_MAX_COLIS_DPD"] or self.options['SEUIL_ARTICLE_LEGER']>=self.options["POIDS_MAX_COLIS_DPD"]:
-                    return {'error':'Cannot compact cart enough'}
 
-            capture_message(f"[INFO] Cart have been compacted {compacting_count} times.")
-            # Generates the set of all possible partitions
-            # weights = list(tarif_par_kg[:,0])
-            capture_message(f"{columns_labels=}")
-            weights = csv[columns_labels[0]]
-            prices = csv[columns_labels[1]]
-            
-            # prices = list(tarif_par_kg[:,1])
-            # Trick to handle max weight : over max : price = inf
-            set_new_tarif(weights,prices, max_weight)
-            set_new_tarif(weights,prices, max_weight)
-            try :
-                result = find_best_config(items)
-            except IndexError as e: 
-                raise IndexError(f'[ERROR] Could not find best config on {items}. \n panier = {panier} \n  Initial panier ={initial_panier} \n items = {items} \n Error = {e}')
-            best_price = result['price']
-            best_config = result['config']
-            # from best config retrieve corresponding labels 
-            best_config_labels=[]
-            for group in best_config:
-                current_group_labels=[]
-                for article in group:
-                    if article not in items:
-                        raise ValueError("Article not found")
-                    current_group_labels.append(items_label[items.index(article)])
-                best_config_labels.append(current_group_labels)
-                    
-            print(f"\t [INFO] C + python - price : {best_price}\n For config : {best_config}")
+    def compact_shopping_cart(self, panier : list):
+        """ Tweaking method to reduce calculation time : regroup small articles """
+        panier_returned = panier.copy()
+        light_articles = []
+        panier_sorted = []
+        for article in panier_returned :
+            mass = float(article['poids'])
+            if mass < self.options["SEUIL_ARTICLE_LEGER"]:
+                light_articles.append(article)
+            else :
+                panier_sorted.append(article)
+        current_group = []
+        current_mass = 0
+        light_groups = []
+        for article in light_articles:
+            current_group.append(article['nom'])
+            current_mass += float(article['poids'])
+            if current_mass > self.options["SEUIL_COMPACTAGE"] :
+                counts = Counter(current_group)
+                label = " + ".join([f"{count}x {key}" for key, count in counts.items()])
+                light_groups.append({"nom":label, 'poids':current_mass})
+                current_mass=0
+                current_group=[]
+        if current_mass>0:
+            counts = Counter(current_group)
+            label = " + ".join([f"{count}x {key}" for key, count in counts.items()])
+            light_groups.append({"nom":label, 'poids':current_mass})
+        
 
-            if self.VERBOSE:
-                print(f"\t[INFO] Minimum cost : {best_price}€")
-                print(f"\t[INFO] Best partition : {best_config}")
-                print("[INFO] Calculating tarif for DPD : DONE\n")
-            return {
-                "best_price":best_price,
-                "best_config": best_config,
-                "best_config_labels" : best_config_labels,
-                "compacting_count" : compacting_count,
-            } 
+        panier_returned = panier_sorted + light_groups
+        print(f'[INFO] Panier compacted : \n {panier_returned}')
+        return panier_returned
     
 
 
@@ -226,10 +196,10 @@ class Transporteur:
         departement = options['departement']
         # Check if the weight of an article is greater than the maximum weight of the colis
         for element in panier:
-            if element['poids'] >= self.options["POIDS_MAX_COLIS_DPD"]:
+            if float(element['poids']) >= self.options["POIDS_MAX_COLIS_DPD"]:
                 if self.VERBOSE:
                     print(f"\t[ERROR] Poids de l'article {element['nom']} superieur au poids maximum du colis")
-                    print(f"\t[ERROR] Poids de l'article {element['nom']} : {element['poids']} kg")
+                    print(f"\t[ERROR] Poids de l'article {element['nom']} : {float(element['poids'])} kg")
                     print("\t[WARNING] Calculating tarif for DPD : ERROR")
                     return {'error' : 'excessive mass'}
         
@@ -246,26 +216,31 @@ class Transporteur:
             # Convert the result back to lists (since zip returns tuples)
             return list(sorted_list1), list(permuted_list2)
         
-        def optimiser_colis(items, items_label, max_weight, columns_labels,csv):
+        def optimiser_colis(panier, max_weight, columns_labels, csv):
+            initial_panier = panier[:]
+            items = [float(article['poids']) for article in panier]
+            items_label = [article["nom"] for article in panier]
             items,items_label = sort_and_permute(items,items_label)
             n = len(items)
             number_of_partitions = partitions_count(n)
-            if self.VERBOSE:
-                print("\t[INFO] Optimizing colis arrangement...")
-                print(f"\t[INFO] Number of partitions : {number_of_partitions}")
-            if number_of_partitions > self.options["SEUIL_WARNING_ITERATIONS"]:
-                if self.VERBOSE:
-                    print(f"\t[WARNING] Number of partitions : {number_of_partitions}")
-                    print(f"\t[WARNING] This may take a while...")
-                try :
-                    message = f"Le calcul peut etre long pour DPD. Temps estimé supérieur à : {3e-6*number_of_partitions:.2f}s.\n Voulez vous proceder ?"
-                    should_continue = self.warning_callback(message)
-                    if not should_continue:
-                        print("\t[INFO] Prompt response : No. Aborting DPD calculation.")
-                        return float('inf'),None
-                    print("\t[INFO] Prompt response : OK. Continuing calculation.")
-                except Exception as e: 
-                    print(e)
+            print(f"[INFO] Compacting shopping cart while calculation is too expensive: Cart = {panier}")
+    
+            compacting_count = 0
+            while number_of_partitions > self.options["SEUIL_WARNING_ITERATIONS"]:
+                compacting_count+=1
+                self.options['SEUIL_COMPACTAGE']+=1
+                self.options['SEUIL_ARTICLE_LEGER']+=1
+                panier_compact = self.compact_shopping_cart(panier)
+                items = [float(article['poids']) for article in panier_compact]
+                items_label = [article["nom"] for article in panier_compact]
+                items,items_label = sort_and_permute(items,items_label)
+                n = len(items)
+                print(f"[INFO] cart len {n}")
+                number_of_partitions = partitions_count(n)
+                if self.options['SEUIL_COMPACTAGE']>=self.options["POIDS_MAX_COLIS_DPD"] or self.options['SEUIL_ARTICLE_LEGER']>=self.options["POIDS_MAX_COLIS_DPD"]:
+                    return {'error':'Cannot compact cart enough'}
+
+            print(f"[INFO] Cart have been compacted {compacting_count} times.")
             # Generates the set of all possible partitions
             # weights = list(tarif_par_kg[:,0])
             print(f"{columns_labels=}")
@@ -274,12 +249,13 @@ class Transporteur:
             
             # prices = list(tarif_par_kg[:,1])
             # Trick to handle max weight : over max : price = inf
-            c_set_new_tarif(weights,prices, max_weight)
             set_new_tarif(weights,prices, max_weight)
-            result = c_find_best_config(items)
+            set_new_tarif(weights,prices, max_weight)
+            try :
+                result = find_best_config(items)
+            except IndexError as e: 
+                raise IndexError(f'[ERROR] Could not find best config on {items}. \n panier = {panier} \n  Initial panier ={initial_panier} \n items = {items} \n Error = {e}')
             best_price = result['price']
-            if best_price > 10_000:
-                return {'error','best_price > 10 000euros'}
             best_config = result['config']
             # from best config retrieve corresponding labels 
             best_config_labels=[]
@@ -297,12 +273,20 @@ class Transporteur:
                 print(f"\t[INFO] Minimum cost : {best_price}€")
                 print(f"\t[INFO] Best partition : {best_config}")
                 print("[INFO] Calculating tarif for DPD : DONE\n")
-            return best_price, (best_config,best_config_labels)
-
-        poids_articles = [article['poids'] for article in panier]
-        nom_articles = [article["nom"] for article in panier]
-
-        total_cost, colis = optimiser_colis(poids_articles, nom_articles, self.options["POIDS_MAX_COLIS_DPD"], self.columns_labels, self.csv)
+            return {
+                "best_price":best_price,
+                "best_config": best_config,
+                "best_config_labels" : best_config_labels,
+                "compacting_count" : compacting_count,
+            } 
+        
+        result = optimiser_colis(panier, self.options["POIDS_MAX_COLIS_DPD"], self.columns_labels, self.csv)
+        if 'error' in result:
+            return result
+        else : 
+            total_cost = result['best_price'] 
+            colis = (result['best_config'], result['best_config_labels'])
+            compacting_count = result['compacting_count']
         if colis is not None:
             colis_masses, colis_labels = colis
             prix_colis = [ tarif_par_masse(sum(colis)) for colis in colis_masses ]
@@ -312,17 +296,19 @@ class Transporteur:
                 print(f"\t[INFO] Colis distribution: {colis_masses}")
                 print(f"\t[INFO] Colis distribution: {colis_labels}")
             
-            return {"prix": total_cost,
+            return {"prix": total_cost*self.options["POURCENTAGE_MAGE"]/100,
                     "arrangement (masses)":colis_masses,
                     "arrangement (labels)": colis_labels,
                     "prix_colis":prix_colis,
-                        "masses colis":total_masses_colis}
+                    "masses colis":total_masses_colis,
+                    'compacting_count':compacting_count,
+                    }
         else :
             if self.VERBOSE:
                 print(f"\t[INFO] Total cost for DPD: NOT CALCULATED")
                 print(f"\t[INFO] Colis distribution: NOT CALCULATED")
                 print(f"\t[INFO] Colis distribution: NOT CALCULATED")     
-            return {'error': 'colis is None'}     
+            return {'error': 'colis is None'}        
     
     def calculer_tarif_schenker_palette(self, panier, options, nbre_palette = 1, verbose=False):
         poids_total = 0
@@ -363,7 +349,7 @@ class Transporteur:
             if self.VERBOSE:
                 print(f"\t[INFO] Tarif pour {nbre_palette} palettes : {tarif}€")
                 print(f"[INFO] Calculating tarif for Schenker palette : DONE\n")
-            return {"prix" : tarif}
+            return {"prix" : tarif*self.options["POURCENTAGE_MAGE"]/100}
         except IndexError:
             print("[ERROR] Nombre de palettes invalide\n")
             return {'error':"[ERROR] Nombre de palettes invalide"}
@@ -449,4 +435,4 @@ class Transporteur:
                         if self.VERBOSE:
                             print(f"\t[INFO] Tarif pour {poids_total} kg : {tarif}€")
                             print(f"[INFO] Calculating tarif for Schenker messagerie : DONE\n")
-                        return {"prix" : tarif}
+                        return {"prix" : tarif*self.options["POURCENTAGE_MAGE"]/100}
