@@ -416,7 +416,7 @@ class Transporteur:
                     if self.VERBOSE:
                         print(f"\t[INFO] Tarif pour {poids_total} kg : {tarif}€")
                         print(f"[INFO] Calculating tarif for Schenker messagerie : DONE\n")
-                    return {"prix" : tarif}
+                    return {"prix" : tarif*(1+self.options["POURCENTAGE_MAGE"]/100)}
         else :
             if poids_total>self.options["MAX_POIDS_MESSAGERIE_SCHENKER"]:
                 if self.VERBOSE:
