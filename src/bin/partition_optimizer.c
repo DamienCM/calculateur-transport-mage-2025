@@ -67,9 +67,9 @@ int binary_search_right(double value) {
 // Tarif par masse implementation
 double tarif_par_masse(double masse) {
     if (masse <= weights[weights_length - 1]) {
-        return prices[binary_search_right(masse) - 1];
+        return prices[binary_search_right(masse)];
     } else {
-        return prices[weights_length - 1];
+        return prices[weights_length];
     }
 }
 

@@ -31,12 +31,16 @@ def set_new_tarif(new_weights, new_prices, max_weight):
 
 @lru_cache(maxsize=None)
 def tarif_par_masse(masse):
+    print(f'[INFO] weights = {weights}')
+    print(f'[INFO] prices = {prices}')
     if masse <= weights[-1]:
-        return prices[np.searchsorted(weights, masse, side="right") - 1]
+        price = prices[np.searchsorted(weights, masse, side="right")] 
+        print(f'[INFO] Calculating tarif for masse {masse} kg, price = {price} euros')
+        return price
     else:
-        return prices[
-            -1
-        ]  # Use the maximum price for weights above the highest threshold
+        price = prices[-1]
+        print(f'[WARNING] Calculating tarif for masse {masse} kg, price = {price} euros')
+        return price
 
 
 # @lru_cache(maxsize=None)
